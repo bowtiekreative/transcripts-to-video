@@ -181,8 +181,11 @@ def _perception_checks(
                 if float(caption.get("t0", 0)) >= float(scene.get("start", 0)) and \
                    float(caption.get("t1", 0)) <= float(scene.get("end", 0)):
                     if str(caption.get("text", "")).strip().lower() in headline:
-                        issues.append(_issue("INFO", "redundancy.caption_headline",
-                                             "Headline repeats the caption on screen at the same moment.", sid))
+                        issues.append(_issue(
+                            "INFO", "redundancy.caption_headline",
+                            "Headline repeats the caption on screen at the same moment. The caption stays — "
+                            "it is an accessibility channel — so the headline is the half that would have to "
+                            "change, which needs an editorial decision rather than a compiler one.", sid))
                         break
 
         # §1.4 says on-screen words should be a fraction of spoken words. That

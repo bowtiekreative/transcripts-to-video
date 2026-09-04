@@ -271,3 +271,38 @@ def test_negation_markers_are_predicate_scoped():
 def test_the_composition_pass_owns_the_accent_bleed():
     renderer = read_code("studio-renderer.js")
     assert "scene.accent_bleed" in renderer, "the renderer must honour the composition pass"
+
+
+# ------------------------------------------------- one renderer, not two ---
+def test_no_template_routes_to_a_second_renderer():
+    """The image slide and the matrix were the last two still drawn by the
+    pre-audit code, which carried overshoot easing, off-token colour and the
+    fixed top-weighted layouts."""
+    renderer = read_code("studio-renderer.js")
+    assert "renderTemplate(scene" not in renderer, "matrix must not fall back to the old path"
+    assert "renderTitle(scene" not in renderer, "the image slide must not fall back to the old path"
+    assert "imageSlide" in renderer and "matrixFigure" in renderer
+
+
+def test_the_legacy_renderer_is_gone_not_merely_unreachable():
+    """Dead code that contradicts the design system is how it comes back."""
+    player = read_code("player.html.j2")
+    for banned in ("function renderTitle", "function renderPair", "function renderBars",
+                   "function renderNetwork", "function enterStyle", "const easeBack"):
+        assert banned not in player, f"{banned} still ships in every preview"
+
+
+def test_the_bounce_primitive_is_not_available_to_be_reintroduced():
+    combined = read_code("player.html.j2") + read_code("studio-renderer.js")
+    assert "easeBack" not in combined
+    assert "1.70158" not in combined, "the overshoot constant itself must be gone"
+
+
+def test_captions_are_never_dropped():
+    """A caption repeating the headline is redundant, but redundancy is a style
+    rule and a caption is an accessibility channel. Suppressing one costs a deaf
+    viewer that line of the transcript outright."""
+    player = read_code("player.html.j2")
+    block = player[player.index("function captionAt"):player.index("function renderAt")]
+    assert 'return "";' in block, "the no-caption-at-this-moment case must still exist"
+    assert "headline.includes(spoken)" not in block, "a caption must not be dropped for matching the headline"

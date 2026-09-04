@@ -81,7 +81,6 @@
     accentHover: BC.accent_hover || BC.accent_2 || "#5B84EE",
     accentPress: BC.accent_press || "#3259C4",
     onAccent: BC.on_accent || "#F5F7FA",
-    accent2: BC.accent_2 || BC.accent_hover || "#5B84EE",
     danger: BC.danger || "#D8574F", good: BC.good || "#3FA46A", warn: BC.warn || "#C98A2E",
     hair: BC.hair || "rgba(245,247,250,.15)", hairSoft: BC.hair_soft || "rgba(245,247,250,.08)"
   };
@@ -115,7 +114,8 @@
   const clamp = (v, a=0, b=1) => Math.max(a, Math.min(b, v));
   const easeOut = p => 1 - Math.pow(1 - clamp(p), 3);
   const easeInOut = p => { p = clamp(p); return p < .5 ? 4*p*p*p : 1 - Math.pow(-2*p+2,3)/2; };
-  const easeBack = p => { p=clamp(p); const c1=1.70158, c3=c1+1; return 1+c3*Math.pow(p-1,3)+c1*Math.pow(p-1,2); };
+  // No easeBack. The design system has no overshoot, and a bounce primitive
+  // sitting in the file is how one comes back.
   const esc = value => String(value ?? "").replace(/[&<>'"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[c]));
   const arr = value => Array.isArray(value) ? value : [];
   const pct = n => `${Math.round(clamp(n)*1000)/10}%`;
@@ -123,20 +123,6 @@
   const alpha = p => phase(p, 0, .15) * (1 - phase(p, .92, 1));
   const px = n => `${Math.round(n*100)/100}px`;
 
-  function enterStyle(p, delay=0, span=.22, direction="up", magnitude=1, pop=false) {
-    const q = pop ? easeBack(clamp((p-delay)/span)) : phase(p, delay, delay+span);
-    const opacity = clamp(q * 1.35) * (1 - phase(p, .94, 1));
-    const travelBase = 24 * U * magnitude;
-    let x=0, y=0;
-    if (direction === "up") y = travelBase * (1-q);
-    if (direction === "down") y = -travelBase * (1-q);
-    if (direction === "left") x = travelBase * (1-q);
-    if (direction === "right") x = -travelBase * (1-q);
-    const scale = pop ? (.82 + .18*q) : (1 - .025*(1-q));
-    return `opacity:${opacity};transform:translate(${px(x)},${px(y)}) scale(${scale});`;
-  }
-  const enter = (p, delay=0, span=.22, direction="up", magnitude=1) => enterStyle(p,delay,span,direction,magnitude,false);
-  const pop = (p, delay=0, span=.22) => enterStyle(p,delay,span,"up",1,true);
   const draw = (p, delay=0, span=.32) => phase(p,delay,delay+span,easeInOut);
 
   function sceneAt(t) {
@@ -177,255 +163,12 @@
     return `<div style="${enter(p,delay,.24)}font:400 ${px(3.8*U)}/1.34 ${font};letter-spacing:-.012em;color:${colors.body};max-width:${px(landscape?W*.66:W-edge*2)};">${esc(display)}</div>`;
   }
 
-  function renderTitle(scene,p) {
-    const P=scene.payload||{};
-    const asset=P.asset||scene.asset;
-    const imageMode=scene.layout==="image_overlay"&&asset;
-    const imageScale=1.08-.045*easeInOut(p);
-    const bg=imageMode ? `<div style="position:absolute;inset:-3%;transform:scale(${imageScale});"><img src="${esc(asset)}" alt="" style="width:100%;height:100%;object-fit:cover;filter:saturate(.85) contrast(.92);" /></div>` : "";
-    const grade=imageMode ? `<div style="position:absolute;inset:0;background:linear-gradient(90deg,rgba(7,9,13,.98) 0%,rgba(7,9,13,.84) 43%,rgba(7,9,13,.22) 78%,rgba(7,9,13,.08) 100%),linear-gradient(0deg,rgba(15,26,69,.2),rgba(15,26,69,.2));"></div><div style="position:absolute;inset:0;opacity:.06;background-image:repeating-radial-gradient(circle at 20% 30%,#fff 0,#fff .65px,transparent .8px,transparent 3px);mix-blend-mode:soft-light;"></div>` : `<div style="position:absolute;inset:0;background:linear-gradient(90deg,rgba(7,9,13,.97) 0%,rgba(7,9,13,.78) 56%,rgba(7,9,13,.34) 100%);"></div>`;
-    return `${bg}${grade}
-      <div style="position:absolute;left:${px(edge)};right:${px(edge)};top:${px(H*(landscape?.22:.27))};display:flex;flex-direction:column;gap:${px(3.5*U)};">
-        ${label(P.label || STORY.content?.speaker || "",p,.02)}
-        ${headline(P.headline || scene.text,p,.08,13.2)}
-        ${supporting(P.supporting && P.supporting!==P.headline ? P.supporting : "",p,.34,22)}
-      </div>`;
-  }
-
-  function renderQuote(scene,p) {
-    const P=scene.payload||{};
-    return `<div style="position:absolute;left:${px(edge)};right:${px(edge)};top:${px(H*.23)};bottom:${px(captionHeight+captionBottom+5*U)};display:flex;flex-direction:column;justify-content:center;gap:${px(4*U)};">
-      <div style="${enter(p,.02,.22,'up')}font:600 ${px(11*U)}/1 ${font};color:${colors.accent};">“</div>
-      ${headline(P.headline || scene.text,p,.08,10.2)}
-      ${label(P.label || "",p,.38)}
-    </div>`;
-  }
-
-  function renderBigNumber(scene,p) {
-    const P=scene.payload||{};
-    const q=phase(p,.08,.48,easeBack);
-    return `<div style="position:absolute;left:${px(edge)};right:${px(edge)};top:${px(H*.20)};bottom:${px(captionHeight+captionBottom+5*U)};display:flex;justify-content:center;align-items:flex-start;flex-direction:column;gap:${px(3.4*U)};text-align:left;">
-      ${label(P.unit || "Measured value",p,.02)}
-      <div style="opacity:${alpha(p)};transform:scale(${.72+.28*q});transform-origin:0 50%;font:600 ${px(29*U)}/.82 ${font};letter-spacing:-.075em;color:${colors.text};">${esc(P.number||"")}</div>
-      <div style="${enter(p,.34,.22)}font:400 ${px(4.6*U)}/1.25 ${font};color:${colors.body};max-width:${px(W*.70)};">${esc(P.label||"")}</div>
-    </div>`;
-  }
-
-  function itemRows(items,p,ordered=false) {
-    return arr(items).slice(0,7).map((item,i) => {
-      const q=phase(p,.16+i*.07,.38+i*.07,easeOut);
-      const number=ordered ? `<span style="color:${colors.accent};font-weight:600;min-width:${px(4.4*U)};">${String(i+1).padStart(2,'0')}</span>` : `<span style="width:${px(1.2*U)};height:${px(1.2*U)};border-radius:50%;background:${colors.accent};flex:0 0 auto;margin-top:${px(.8*U)};"></span>`;
-      return `<div style="opacity:${q*(1-phase(p,.95,1))};transform:translateY(${px((1-q)*2.3*U)});display:flex;align-items:flex-start;gap:${px(2.2*U)};padding:${px(2.5*U)} 0;border-top:1px solid ${colors.hair};font:600 ${px(3.8*U)}/1.2 ${font};color:${colors.text};">
-        ${number}<span>${esc(typeof item==='object' ? (item.event||item.label||JSON.stringify(item)) : item)}</span></div>`;
-    }).join("");
-  }
-
-  function renderList(scene,p,ordered=false) {
-    const P=scene.payload||{};
-    const items=P.items||P.nodes||P.children||[];
-    return `<div style="position:absolute;left:${px(edge)};right:${px(edge)};top:${px(H*.15)};bottom:${px(captionHeight+captionBottom+3*U)};display:flex;flex-direction:column;gap:${px(2.4*U)};">
-      ${label(P.label || (ordered?"In order":"Key points"),p,.02)}
-      ${headline(P.headline||scene.text,p,.05,8.4)}
-      <div style="display:grid;grid-template-columns:${landscape?'1fr 1fr':'1fr'};column-gap:${px(4*U)};margin-top:${px(2.2*U)};">${itemRows(items,p,ordered)}</div>
-    </div>`;
-  }
-
-  function renderSteps(scene,p) {
-    const P=scene.payload||{}, items=arr(P.items).slice(0,6);
-    const x=edge+4*U;
-    const top=H*.33;
-    const bottom=H-captionHeight-captionBottom-7*U;
-    const railH=Math.max(10,bottom-top);
-    const lineQ=phase(p,.15,.72,easeInOut);
-    let nodes="";
-    items.forEach((item,i)=>{
-      const y=top+(items.length===1?0:(railH*i/(items.length-1)));
-      const q=phase(p,.18+i*(.48/Math.max(1,items.length-1)),.36+i*(.48/Math.max(1,items.length-1)),easeBack);
-      nodes += `<div style="position:absolute;left:${px(x-2.1*U)};top:${px(y-2.1*U)};width:${px(4.2*U)};height:${px(4.2*U)};border-radius:50%;background:${colors.accent};display:grid;place-items:center;opacity:${q};transform:scale(${.7+.3*q});font:600 ${px(1.8*U)}/1 ${font};color:white;">${i+1}</div>
-        <div style="position:absolute;left:${px(x+5.5*U)};right:${px(edge)};top:${px(y-2.4*U)};${enter(p,.18+i*(.48/Math.max(1,items.length-1)),.22,'up')}font:600 ${px(3.8*U)}/1.22 ${font};color:${colors.text};">${esc(item)}</div>`;
-    });
-    return `<div style="position:absolute;left:${px(edge)};right:${px(edge)};top:${px(H*.12)};">${label(P.label||"Process",p,.02)}${headline(P.headline||scene.text,p,.05,8.2)}</div>
-      <div style="position:absolute;left:${px(x-.22*U)};top:${px(top)};width:${px(.44*U)};height:${px(railH*lineQ)};background:${colors.accent};border-radius:999px;"></div>${nodes}`;
-  }
-
-  function renderTimeline(scene,p) {
-    const P=scene.payload||{};
-    const events=arr(P.events).length ? P.events : arr(P.items).map((event,i)=>({time:String(i+1),event}));
-    const top=H*.31, bottom=H-captionHeight-captionBottom-5*U, railH=Math.max(10,bottom-top), x=edge+3*U;
-    const lineQ=phase(p,.13,.73,easeInOut);
-    let nodes="";
-    events.slice(0,6).forEach((ev,i)=>{
-      const y=top+(events.length===1?0:railH*i/(events.length-1));
-      const at=.18+i*(.5/Math.max(1,events.length-1));
-      const q=phase(p,at,at+.18,easeBack);
-      nodes += `<div style="position:absolute;left:${px(x-1.6*U)};top:${px(y-1.6*U)};width:${px(3.2*U)};height:${px(3.2*U)};border-radius:50%;background:${colors.canvas};border:${px(.42*U)} solid ${colors.accent};opacity:${q};transform:scale(${.7+.3*q});"></div>
-        <div style="position:absolute;left:${px(x+4.8*U)};right:${px(edge)};top:${px(y-2.5*U)};${enterStyle(p,at,.20,'up')}display:flex;flex-direction:column;gap:${px(.8*U)};">
-          <div style="font:600 ${px(2.0*U)}/1 ${font};letter-spacing:.08em;text-transform:uppercase;color:${colors.accent2};">${esc(ev.time||"")}</div>
-          <div style="font:600 ${px(3.8*U)}/1.22 ${font};color:${colors.text};">${esc(ev.event||ev)}</div></div>`;
-    });
-    return `<div style="position:absolute;left:${px(edge)};right:${px(edge)};top:${px(H*.11)};">${label(P.label||"Timeline",p,.02)}${headline(P.headline||scene.text,p,.05,8.2)}</div>
-      <div style="position:absolute;left:${px(x-.18*U)};top:${px(top)};width:${px(.36*U)};height:${px(railH*lineQ)};background:${colors.accent};"></div>${nodes}`;
-  }
-
-  function pairLabels(template) {
-    if (template==="before_after") return ["Before","After"];
-    if (template==="comparison_split") return ["A","B"];
-    if (template==="cause_effect") return ["Cause","Effect"];
-    if (template==="problem_solution") return ["Problem","Response"];
-    if (template==="condition_cards") return ["Condition","Response"];
-    return ["From","To"];
-  }
-
-  function renderPair(scene,p) {
-    const P=scene.payload||{}; const labels=pairLabels(scene.template);
-    const leftLabel=P.left_label||labels[0], rightLabel=P.right_label||labels[1];
-    const leftQ=phase(p,.12,.34,easeOut), connectQ=phase(p,.38,.62,easeInOut), rightQ=phase(p,.52,.76,easeBack);
-    const gap=landscape?4*U:0;
-    const panelW=landscape?(W-edge*2-gap)/2:W-edge*2;
-    const top=H*(landscape?.39:.31), cardH=landscape?H*.27:Math.min(H*.22,30*U);
-    const secondLeft=landscape?edge+panelW+gap:edge;
-    const secondTop=landscape?top:top+cardH+15*U;
-    const connector=landscape
-      ? `<div style="position:absolute;left:${px(edge+panelW)};top:${px(top+cardH*.5)};width:${px(gap*connectQ)};height:${px(.45*U)};background:${colors.accent};"></div><div style="position:absolute;left:${px(edge+panelW+gap*.48)};top:${px(top+cardH*.5-2.2*U)};opacity:${connectQ};font:600 ${px(4.2*U)}/1 ${font};color:${colors.accent};">→</div>`
-      : `<div style="position:absolute;left:50%;top:${px(top+cardH+2*U)};width:${px(.5*U)};height:${px(8*U*connectQ)};background:${colors.accent};transform:translateX(-50%);"></div><div style="position:absolute;left:50%;top:${px(top+cardH+9.3*U)};opacity:${connectQ};transform:translateX(-50%) rotate(90deg);font:600 ${px(4.2*U)}/1 ${font};color:${colors.accent};">→</div>`;
-    return `<div style="position:absolute;left:${px(edge)};right:${px(edge)};top:${px(H*.11)};">${label(P.label||scene.primary_relation.replaceAll('_',' '),p,.02)}${headline(P.headline||scene.text,p,.05,8.4)}</div>
-      <div style="position:absolute;left:${px(edge)};top:${px(top)};width:${px(panelW)};height:${px(cardH)};padding:${px(3*U)};border-radius:${px((BS.radius_medium||20)*W/1080)};background:${colors.surface};border:1px solid ${colors.hairSoft};opacity:${leftQ};transform:translateY(${px((1-leftQ)*3*U)});">
-        <div style="font:600 ${px(2.0*U)}/1 ${font};letter-spacing:.14em;text-transform:uppercase;color:${colors.muted};">${esc(leftLabel)}</div>
-        <div style="margin-top:${px(2.2*U)};font:600 ${px(4.6*U)}/1.14 ${font};color:${colors.text};">${esc(P.left||"")}</div></div>
-      ${connector}
-      <div style="position:absolute;left:${px(secondLeft)};top:${px(secondTop)};width:${px(panelW)};height:${px(cardH)};padding:${px(3*U)};border-radius:${px((BS.radius_medium||20)*W/1080)};background:${colors.raised};border:${px(.18*U)} solid ${colors.accent};opacity:${rightQ};transform:translateY(${px((1-rightQ)*3*U)});">
-        <div style="font:600 ${px(2.0*U)}/1 ${font};letter-spacing:.14em;text-transform:uppercase;color:${colors.accent2};">${esc(rightLabel)}</div>
-        <div style="margin-top:${px(2.2*U)};font:600 ${px(4.6*U)}/1.14 ${font};color:${colors.text};">${esc(P.right||"")}</div></div>`;
-  }
-
-  function renderDefinition(scene,p) {
-    const P=scene.payload||{};
-    const line=phase(p,.3,.58,easeInOut);
-    return `<div style="position:absolute;left:${px(edge)};right:${px(edge)};top:${px(H*.2)};bottom:${px(captionHeight+captionBottom+4*U)};display:flex;flex-direction:column;justify-content:center;gap:${px(4*U)};">
-      ${label(P.label||"Definition",p,.02)}
-      <div style="${enter(p,.07,.24)}font:600 ${px(10.2*U)}/.98 ${font};letter-spacing:-.04em;color:${colors.text};">${esc(P.term||P.headline||"")}</div>
-      <div style="height:${px(.35*U)};width:${pct(line)};background:${colors.accent};"></div>
-      <div style="${enter(p,.42,.28)}font:400 ${px(4.3*U)}/1.38 ${font};color:${colors.body};max-width:${px(landscape?W*.72:W-edge*2)};">${esc(P.definition||P.supporting||"")}</div>
-    </div>`;
-  }
-
-  function renderHierarchy(scene,p) {
-    const P=scene.payload||{}, children=arr(P.children).slice(0,6);
-    const parentQ=phase(p,.08,.3,easeBack), lineQ=phase(p,.28,.62,easeInOut);
-    const center=W/2, top=H*.30, childTop=H*.54, childW=(W-edge*2-(Math.max(1,Math.min(2,children.length))-1)*2*U)/Math.min(2,Math.max(1,children.length));
-    let childCards="";
-    children.forEach((child,i)=>{
-      const cols=children.length===1?1:2, col=i%cols, row=Math.floor(i/cols);
-      const x=edge+col*(childW+2*U), y=childTop+row*12*U;
-      const q=phase(p,.42+i*.055,.62+i*.055,easeOut);
-      childCards += `<div style="position:absolute;left:${px(x)};top:${px(y)};width:${px(childW)};min-height:${px(9.5*U)};padding:${px(2*U)};border:1px solid ${colors.hairSoft};border-radius:${px((BS.radius_small||10)*W/1080)};background:${colors.surface};opacity:${q};transform:translateY(${px((1-q)*2*U)});font:600 ${px(2.6*U)}/1.22 ${font};color:${colors.text};">${esc(child)}</div>`;
-    });
-    return `<div style="position:absolute;left:${px(edge)};right:${px(edge)};top:${px(H*.09)};">${label(P.label||"System",p,.02)}${headline(P.headline||scene.text,p,.05,7.8)}</div>
-      <div style="position:absolute;left:${px(center-W*.23)};top:${px(top)};width:${px(W*.46)};padding:${px(2.8*U)};border:${px(.18*U)} solid ${colors.accent};border-radius:${px((BS.radius_medium||20)*W/1080)};background:${colors.raised};opacity:${parentQ};transform:scale(${.85+.15*parentQ});text-align:center;font:600 ${px(3.9*U)}/1.15 ${font};color:${colors.text};">${esc(P.parent||P.headline||"")}</div>
-      <svg style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;" viewBox="0 0 ${W} ${H}">
-        <path d="M ${center} ${top+10*U} L ${center} ${childTop-4*U}" fill="none" stroke="${colors.accent}" stroke-width="${.35*U}" stroke-dasharray="${H}" stroke-dashoffset="${H*(1-lineQ)}" />
-      </svg>${childCards}`;
-  }
-
-  function renderNetwork(scene,p,cycle=false) {
-    const P=scene.payload||{}, nodes=arr(P.nodes||P.items).slice(0,7);
-    const cx=W/2, cy=H*.48, radius=Math.min(W*.34,H*.22), centerQ=phase(p,.06,.28,easeBack), edgeQ=phase(p,.25,.72,easeInOut);
-    let svg="", labels="";
-    nodes.forEach((node,i)=>{
-      const angle=(-Math.PI/2)+(Math.PI*2*i/Math.max(1,nodes.length));
-      const x=cx+Math.cos(angle)*radius, y=cy+Math.sin(angle)*radius;
-      const q=phase(p,.30+i*.055,.50+i*.055,easeBack);
-      if (cycle && nodes.length>1) {
-        const next=(-Math.PI/2)+(Math.PI*2*((i+1)%nodes.length)/nodes.length);
-        const nx=cx+Math.cos(next)*radius, ny=cy+Math.sin(next)*radius;
-        svg += `<line x1="${x}" y1="${y}" x2="${nx}" y2="${ny}" stroke="${colors.accent}" stroke-width="${.34*U}" opacity="${edgeQ}" />`;
-      } else {
-        svg += `<line x1="${cx}" y1="${cy}" x2="${cx+(x-cx)*edgeQ}" y2="${cy+(y-cy)*edgeQ}" stroke="${colors.accent}" stroke-width="${.3*U}" opacity="${edgeQ}" />`;
-      }
-      labels += `<div style="position:absolute;left:${px(x-8*U)};top:${px(y-4*U)};width:${px(16*U)};min-height:${px(8*U)};padding:${px(1.4*U)};display:grid;place-items:center;text-align:center;border:1px solid ${colors.hairSoft};border-radius:${px(999)};background:${colors.surface};opacity:${q};transform:scale(${.72+.28*q});font:600 ${px(2.4*U)}/1.14 ${font};color:${colors.text};">${esc(node)}</div>`;
-    });
-    const centerLabel=cycle ? (P.headline||"Cycle") : (P.center||P.headline||"Center");
-    return `<div style="position:absolute;left:${px(edge)};right:${px(edge)};top:${px(H*.08)};">${label(P.label||(cycle?"Feedback loop":"Connected system"),p,.02)}${headline(P.headline||scene.text,p,.05,7.6)}</div>
-      <svg style="position:absolute;inset:0;width:100%;height:100%;" viewBox="0 0 ${W} ${H}">${svg}</svg>
-      <div style="position:absolute;left:${px(cx-10*U)};top:${px(cy-5*U)};width:${px(20*U)};min-height:${px(10*U)};padding:${px(2*U)};display:grid;place-items:center;text-align:center;border-radius:50%;background:${colors.raised};border:${px(.25*U)} solid ${colors.accent};opacity:${centerQ};transform:scale(${.72+.28*centerQ});font:600 ${px(2.8*U)}/1.15 ${font};color:${colors.text};">${esc(centerLabel)}</div>${labels}`;
-  }
-
-  function renderCTA(scene,p) {
-    const P=scene.payload||{};
-    const field=draw(p,0,.24), content=phase(p,.18,.45,easeOut), buttonQ=phase(p,.48,.72,easeBack);
-    const action=P.action ? `<div style="opacity:${buttonQ};transform:scale(${.86+.14*buttonQ});transform-origin:0 50%;margin-top:${px(2*U)};padding:${px(2.0*U)} ${px(3.2*U)};border-radius:999px;background:${colors.text};font:600 ${px(2.8*U)}/1 ${font};color:${colors.accent};">${esc(P.action)}</div>` : "";
-    return `<div style="position:absolute;inset:0;background:${colors.accent};transform:scaleY(${field});transform-origin:50% 100%;"></div>
-      <div style="position:absolute;left:${px(edge)};right:${px(edge)};top:${px(H*.17)};bottom:${px(captionHeight+captionBottom+4*U)};display:flex;flex-direction:column;justify-content:center;align-items:flex-start;gap:${px(3.5*U)};opacity:${content};transform:translateY(${px((1-content)*4*U)});">
-        <div style="font:600 ${px(2.3*U)}/1 ${font};letter-spacing:.15em;text-transform:uppercase;color:rgba(245,247,250,.70);">${esc(P.label||"Close")}</div>
-        <div style="font:600 ${px(11.6*U)}/.96 ${font};letter-spacing:-.045em;color:${colors.text};max-width:${px(landscape?W*.78:W-edge*2)};">${esc(P.headline||scene.text||"")}</div>
-        ${P.supporting&&P.supporting!==P.headline?`<div style="font:400 ${px(3.7*U)}/1.3 ${font};color:rgba(245,247,250,.82);max-width:${px(W*.66)};">${esc(P.supporting)}</div>`:""}
-        ${action}
-        ${P.destination?`<div style="${enter(p,.62,.2)}font:600 ${px(3.0*U)}/1.2 ${font};color:${colors.text};">${esc(P.destination)}</div>`:""}
-      </div>`;
-  }
-
-  function renderWarning(scene,p) {
-    const P=scene.payload||{};
-    const q=phase(p,.05,.35,easeBack);
-    return `<div style="position:absolute;left:${px(edge)};right:${px(edge)};top:${px(H*.25)};padding:${px(4.5*U)};border:${px(.25*U)} solid ${colors.danger};border-radius:${px((BS.radius_large||34)*W/1080)};background:${colors.surface};opacity:${q};transform:scale(${.9+.1*q});">
-      ${label(P.label||"Important",p,.08)}${headline(P.headline||scene.text,p,.12,7.2)}${supporting(P.supporting,p,.38,28)}
-    </div>`;
-  }
-
-  function renderWave(scene,p,t) {
-    const P=scene.payload||{}, bars=arr(P.energy_bars).slice(0,64), count=Math.max(1,bars.length);
-    const areaW=W-edge*2, barGap=areaW/count*.24, barW=(areaW-barGap*(count-1))/count, baseline=H*.58;
-    let html="";
-    bars.forEach((value,i)=>{
-      const local=clamp(Number(value));
-      const reveal=phase(p,.16+i*.004,.42+i*.004,easeOut);
-      const live=.88+.12*Math.sin((t*4.3)+(i*.48));
-      const h=(3*U+local*26*U)*reveal*live;
-      html += `<div style="position:absolute;left:${px(edge+i*(barW+barGap))};top:${px(baseline-h/2)};width:${px(barW)};height:${px(h)};border-radius:999px;background:${i%7===0?colors.accent2:colors.accent};opacity:${.35+.65*reveal};"></div>`;
-    });
-    return `<div style="position:absolute;left:${px(edge)};right:${px(edge)};top:${px(H*.13)};">${label(P.label||"Audio structure",p,.02)}${headline(P.headline||scene.text,p,.05,8.2)}</div>${html}
-      <div style="position:absolute;left:${px(edge)};bottom:${px(captionHeight+captionBottom+7*U)};font:600 ${px(2.1*U)}/1 ${font};color:${colors.muted};">${P.tempo_bpm?esc(P.tempo_bpm+" BPM") : "Measured energy"}</div>`;
-  }
-
-  function renderBars(scene,p) {
-    const P=scene.payload||{}, series=arr(P.series).slice(0,10), max=Math.max(1,...series.map(x=>Number(x.value)||0));
-    const chartLeft=edge+8*U, chartRight=W-edge, chartTop=H*.36, chartBottom=H-captionHeight-captionBottom-7*U;
-    const chartH=chartBottom-chartTop, rowH=chartH/Math.max(1,series.length);
-    let html="";
-    series.forEach((item,i)=>{
-      const q=phase(p,.18+i*.05,.48+i*.05,easeOut), width=(chartRight-chartLeft)*(Number(item.value)||0)/max*q;
-      html += `<div style="position:absolute;left:${px(edge)};top:${px(chartTop+i*rowH+rowH*.25)};width:${px(7*U)};font:600 ${px(1.9*U)}/1.1 ${font};color:${colors.body};text-align:right;">${esc(item.label||"")}</div>
-        <div style="position:absolute;left:${px(chartLeft)};top:${px(chartTop+i*rowH+rowH*.18)};width:${px(width)};height:${px(rowH*.52)};border-radius:${px(rowH*.18)};background:${colors.accent};"></div>
-        <div style="position:absolute;left:${px(chartLeft+width+1.2*U)};top:${px(chartTop+i*rowH+rowH*.25)};font:600 ${px(2.0*U)}/1 ${font};color:${colors.text};opacity:${q};">${esc(item.value)}</div>`;
-    });
-    return `<div style="position:absolute;left:${px(edge)};right:${px(edge)};top:${px(H*.10)};">${label(P.unit||"Data",p,.02)}${headline(P.headline||scene.text,p,.05,7.6)}</div>${html}`;
-  }
-
-  function renderFunnel(scene,p) {
-    const P=scene.payload||{}, items=arr(P.items).slice(0,7), top=H*.32, available=H-captionHeight-captionBottom-top-5*U, h=available/Math.max(1,items.length);
-    let html="";
-    items.forEach((item,i)=>{
-      const q=phase(p,.16+i*.065,.42+i*.065,easeOut); const width=(W-edge*2)*(1-i*.085);
-      html += `<div style="position:absolute;left:${px((W-width)/2)};top:${px(top+i*h)};width:${px(width)};height:${px(h*.78)};clip-path:polygon(4% 0,96% 0,90% 100%,10% 100%);background:${i===items.length-1?colors.accent:colors.surface};border:1px solid ${colors.hairSoft};opacity:${q};transform:scaleX(${.7+.3*q});display:grid;place-items:center;text-align:center;padding:0 ${px(3*U)};font:600 ${px(2.9*U)}/1.15 ${font};color:${colors.text};">${esc(typeof item==='object'?(item.label||item.event):item)}</div>`;
-    });
-    return `<div style="position:absolute;left:${px(edge)};right:${px(edge)};top:${px(H*.10)};">${label(P.label||"Stages",p,.02)}${headline(P.headline||scene.text,p,.05,7.6)}</div>${html}`;
-  }
-
-  function renderMatrix(scene,p) {
-    const P=scene.payload||{}, points=arr(P.points).slice(0,20), xAxis=arr(P.x_axis), yAxis=arr(P.y_axis);
-    const left=edge+6*U, right=W-edge-2*U, top=H*.34, bottom=H-captionHeight-captionBottom-7*U;
-    let dots="";
-    points.forEach((pt,i)=>{
-      const q=phase(p,.25+i*.025,.48+i*.025,easeBack); const x=left+clamp(Number(pt.x))*(right-left), y=bottom-clamp(Number(pt.y))*(bottom-top);
-      dots += `<div style="position:absolute;left:${px(x-2.3*U)};top:${px(y-2.3*U)};width:${px(4.6*U)};height:${px(4.6*U)};border-radius:50%;background:${colors.accent};opacity:${q};transform:scale(${.6+.4*q});display:grid;place-items:center;font:600 ${px(1.6*U)}/1 ${font};color:white;">${esc(pt.label||i+1)}</div>`;
-    });
-    return `<div style="position:absolute;left:${px(edge)};right:${px(edge)};top:${px(H*.08)};">${label(P.label||"Matrix",p,.02)}${headline(P.headline||scene.text,p,.05,7.4)}</div>
-      <div style="position:absolute;left:${px(left)};top:${px(top)};width:${px(right-left)};height:${px(bottom-top)};border-left:${px(.3*U)} solid ${colors.body};border-bottom:${px(.3*U)} solid ${colors.body};background:linear-gradient(${colors.hairSoft} 1px,transparent 1px),linear-gradient(90deg,${colors.hairSoft} 1px,transparent 1px);background-size:25% 25%;"></div>
-      <div style="position:absolute;left:${px(left)};top:${px(bottom+1.5*U)};font:600 ${px(1.7*U)}/1 ${font};color:${colors.muted};">${esc(xAxis[0]||"Low")}</div>
-      <div style="position:absolute;right:${px(edge)};top:${px(bottom+1.5*U)};font:600 ${px(1.7*U)}/1 ${font};color:${colors.muted};">${esc(xAxis[1]||"High")}</div>
-      <div style="position:absolute;left:${px(edge)};top:${px(top)};font:600 ${px(1.7*U)}/1 ${font};color:${colors.muted};">${esc(yAxis[1]||"High")}</div>
-      <div style="position:absolute;left:${px(edge)};top:${px(bottom-1.7*U)};font:600 ${px(1.7*U)}/1 ${font};color:${colors.muted};">${esc(yAxis[0]||"Low")}</div>${dots}`;
-  }
+  // The pre-audit renderer lived here: 18 scene functions carrying overshoot
+  // easing, off-token colour and the fixed top-weighted layouts. Every one
+  // of them is now unreachable — studio-renderer.js draws every template,
+  // including the image slide and the matrix, which were the last two still
+  // routed to the old path. Keeping dead code that contradicts the design
+  // system is how it comes back.
 
 {{ studio_renderer_js | safe }}
 
@@ -435,11 +178,12 @@
     if (!STORY.captions || C.captions === "none") return "";
     const cap=STORY.captions.find(c=>t>=c.t0-.08 && t<c.t1+.08);
     if (!cap) return "";
-    // A caption that repeats the headline already on screen is noise. Captions
-    // exist to carry what the frame does not say.
-    const headline=capNorm(scene?.payload?.headline);
-    const spoken=capNorm(cap.text);
-    if (headline && spoken && headline.includes(spoken)) return "";
+    // A caption is NEVER dropped. An earlier build suppressed captions that
+    // repeated the headline, on the redundancy principle — but redundancy is a
+    // style rule and captions are an accessibility channel. Dropping one costs
+    // a deaf viewer that line of the transcript outright, which is not a trade
+    // this compiler is allowed to make. The overlap is the honest cost of not
+    // paraphrasing the speaker, and the linter reports it against the headline.
     // Type over the frame is protected by a gradient flood, never a solid capsule.
     const flood=onBlue
       ? "linear-gradient(180deg,transparent 0%,rgba(50,89,196,.55) 55%,rgba(50,89,196,.9) 100%)"
@@ -506,9 +250,9 @@
   window.LAKA_STORYBOARD=STORY;
   window.OM_SCENES=STORY.film?.scenes||[];
   window.CAPS=STORY.film?.caps||[];
-  window.enter=enter;
+  // `draw` stays exported for the Studio tooling; `enter` and `pop` went
+  // with the renderer that defined them.
   window.draw=draw;
-  window.pop=pop;
 
   function formatTime(seconds) {
     const s=Math.max(0,Math.floor(seconds)); return `${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;

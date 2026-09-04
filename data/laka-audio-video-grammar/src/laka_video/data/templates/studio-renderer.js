@@ -450,10 +450,80 @@
     return `<div style="position:absolute;left:0;right:0;${seat}display:flex;flex-direction:column;">${rows}</div>`;
   }
 
+  // ------------------------------------------------------------ image slide ---
+  // The design system's own treatment: one grade over the photograph, a
+  // gradient flood protecting the type rather than a solid capsule behind it,
+  // and a cinema crop rather than a photo ratio.
+  function imageSlide(scene, p) {
+    const P = scene.payload || {};
+    const box = frameBox();
+    const asset = P.asset || scene.asset;
+    const drift = REDUCED_MOTION ? 1 : 1.08 - 0.045 * dsEase(p);
+    const media = asset
+      ? `<div style="position:absolute;inset:0;overflow:hidden;">
+           <img src="${esc(asset)}" alt="" style="width:100%;height:100%;object-fit:cover;transform:scale(${drift.toFixed(4)});filter:saturate(.85) contrast(.92);" /></div>
+         <div style="position:absolute;inset:0;background:linear-gradient(90deg,rgba(7,9,13,.94) 0%,rgba(7,9,13,.78) 38%,rgba(7,9,13,.12) 72%,transparent 100%);"></div>
+         <div style="position:absolute;inset:0;background:linear-gradient(180deg,transparent 40%,rgba(7,9,13,.35) 70%,rgba(7,9,13,.85) 100%);"></div>`
+      : "";
+    return media + statementFrame(
+      microLabel(P.label || STORY.content?.speaker || "", p, scene, 0, undefined, P.headline),
+      headlineBlock(P.headline || scene.text, p, scene,
+                    { width: box.rail, height: box.height * 0.58 }, { max: 12.4, min: 5.4, maxLines: 5 }) +
+      bodyText(headlineUnlessEcho(P.supporting, [P.headline]), p, scene,
+               { width: box.rail, height: box.height * 0.14 }, 480),
+      scene, p
+    );
+  }
+
+  // ----------------------------------------------------------------- matrix ---
+  // Position along two scales is the most accurate quantitative channel there
+  // is (Cleveland & McGill ranks 1 and 2), so the axes carry the meaning and
+  // every point is directly labelled — no legend, no colour key.
+  function matrixFigure(scene, p) {
+    const P = scene.payload || {};
+    const points = arr(P.points).slice(0, 12);
+    const xAxis = arr(P.x_axis);
+    const yAxis = arr(P.y_axis);
+    const head = buildHead(scene, p, P.label || "Matrix", P.headline || scene.text,
+                           { max: 7.6, min: 4.2, maxLines: 2 });
+    const grid = revealAmount(p, scene, 120, 700);
+    return structuredFrame(head, band => {
+      const pad = 6 * U;
+      const left = pad, right = band.width - 2 * U;
+      const top = 2 * U, bottom = band.height - pad;
+      const width = Math.max(1, right - left), height = Math.max(1, bottom - top);
+      const axes = `
+        <div style="position:absolute;left:${px(left)};top:${px(top)};width:${px(width)};height:${px(height)};
+             border-left:1px solid ${colors.hair};border-bottom:1px solid ${colors.hair};
+             transform:scaleY(${grid.toFixed(3)});transform-origin:0 100%;"></div>
+        <div style="position:absolute;left:${px(left)};top:${px(top + height / 2)};width:${px(width * grid)};height:1px;background:${colors.hairSoft};"></div>
+        <div style="position:absolute;left:${px(left + width / 2)};top:${px(top)};width:1px;height:${px(height * grid)};background:${colors.hairSoft};"></div>`;
+      const label = (text, style) =>
+        `<div style="position:absolute;${style}font:600 ${px(MICRO_SIZE)}/1 ${font};letter-spacing:.12em;text-transform:uppercase;color:${colors.muted};">${esc(String(text).toUpperCase())}</div>`;
+      const axisLabels =
+        (xAxis[0] ? label(xAxis[0], `left:${px(left)};top:${px(bottom + 1.6 * U)};`) : "") +
+        (xAxis[1] ? label(xAxis[1], `right:0;top:${px(bottom + 1.6 * U)};`) : "") +
+        (yAxis[1] ? label(yAxis[1], `left:${px(left)};top:${px(top - 2.2 * U)};`) : "") +
+        (yAxis[0] ? label(yAxis[0], `left:${px(left)};top:${px(bottom - 3.4 * U)};`) : "");
+      const plateW = Math.min(band.width * 0.34, 20 * U);
+      const fit = fitTogether(points.map(pt => String(pt.label || "")), plateW, 6 * U,
+                              { max: 2.9, min: BODY_FLOOR, weight: 600, tracking: -0.02, leading: 1.15, maxLines: 2 });
+      const dots = points.map((point, index) => {
+        const q = revealAmount(p, scene, 320 + index * staggerFor(points.length), 600);
+        const x = left + clamp(Number(point.x)) * width;
+        const y = bottom - clamp(Number(point.y)) * height;
+        const rightHalf = x > left + width * 0.62;
+        return `<div style="position:absolute;left:${px(x - 1.1 * U)};top:${px(y - 1.1 * U)};width:${px(2.2 * U)};height:${px(2.2 * U)};border-radius:50%;background:${colors.accent};opacity:${q.toFixed(3)};"></div>
+          <div style="position:absolute;${rightHalf ? `right:${px(band.width - x + 2 * U)};text-align:right;` : `left:${px(x + 2 * U)};`}top:${px(y - 1.6 * U)};width:${px(plateW)};opacity:${q.toFixed(3)};font:600 ${px(fit.size)}/${fit.leading} ${font};letter-spacing:-.02em;color:${colors.text};">${esc(fit.wrapped[index].join(" "))}</div>`;
+      }).join("");
+      return `${axes}${axisLabels}${dots}`;
+    });
+  }
+
   // -------------------------------------------------------------- templates ---
   function renderStudioTemplate(scene, p, t) {
-    if (scene.layout === "image_overlay") return renderTitle(scene, p);
-    if (scene.template === "matrix") return renderTemplate(scene, p, t);
+    if (scene.layout === "image_overlay") return imageSlide(scene, p);
+    if (scene.template === "matrix") return matrixFigure(scene, p);
 
     const P = scene.payload || {};
     const box = frameBox();
