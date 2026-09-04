@@ -86,21 +86,36 @@ def units_to_scenes(units: list[TextUnit], config: dict[str, Any], duration: flo
     min_seconds = float(config.get("min_scene_seconds", 3.5))
     target = float(config.get("target_scene_seconds", 7.5))
     max_seconds = float(config.get("max_scene_seconds", 12.0))
+    # The speaker's own pause is the argument boundary. Anything shorter than
+    # this is continuous speech and belongs to one move.
+    pause = float(config.get("pause_scene_boundary_seconds", 0.55))
     merged: list[TextUnit] = []
     i = 0
     serial = 1
     while i < len(units):
         current = units[i]
-        # Preserve very short standalone title cues; merge short sentence fragments within a cue.
-        while (
-            current.duration < min_seconds
-            and i + 1 < len(units)
-            and units[i + 1].cue_ids == current.cue_ids
-            and units[i + 1].start - current.end < 0.35
-            and units[i + 1].end - current.start <= max_seconds
-        ):
+        # Scenes are argument moves, not sentences, so merging must be allowed
+        # to cross a subtitle boundary. Restricting it to fragments inside one
+        # cue left 14 of 29 scenes under 5.5s, and a 3.4s scene has a two-word
+        # reading budget however little text it carries.
+        while i + 1 < len(units):
+            following = units[i + 1]
+            gap = following.start - current.end
+            same_cue = following.cue_ids == current.cue_ids
+            combined = following.end - current.start
+            if combined > max_seconds:
+                break
+            # Inside a cue, join fragments up to the target. Across cues, join
+            # only while the speaker did not pause, and only while the scene is
+            # still short of the minimum it needs to be readable.
+            if same_cue and gap < 0.35 and current.duration < target:
+                pass
+            elif not same_cue and gap < pause and current.duration < min_seconds:
+                pass
+            else:
+                break
             i += 1
-            current = _combine_units(current, units[i], f"merged-{serial:04d}")
+            current = _combine_units(current, following, f"merged-{serial:04d}")
             serial += 1
             if current.duration >= target:
                 break

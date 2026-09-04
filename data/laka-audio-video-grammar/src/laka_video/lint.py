@@ -61,13 +61,22 @@ def _perception_checks(
                     item_count(payload) + 2))
         required = scan_seconds(marks, visible, perception)
 
-        # 1. readability gate
+        # 1. readability gate. A scene carrying almost nothing that still fails
+        #    is too SHORT, not too wordy, and saying "reduce the text" about a
+        #    one-word frame is advice nobody can act on.
         ratio = required / duration
         if ratio > gate:
-            issues.append(_issue(
-                "WARNING", "perception.readability",
-                f"Needs {required:.1f}s to read comfortably in a {duration:.1f}s scene "
-                f"(ratio {ratio:.2f} > {gate:.2f}).", sid))
+            floor_words = 3
+            if visible <= floor_words:
+                issues.append(_issue(
+                    "INFO", "timing.too_short_to_read",
+                    f"{duration:.1f}s cannot clear the gate even at {visible} word(s); "
+                    f"the scene is too short, not too dense.", sid))
+            else:
+                issues.append(_issue(
+                    "WARNING", "perception.readability",
+                    f"Needs {required:.1f}s to read comfortably in a {duration:.1f}s scene "
+                    f"(ratio {ratio:.2f} > {gate:.2f}); {visible} words on screen.", sid))
 
         # 2. working memory
         chunks = chunk_count(template_id, payload)
