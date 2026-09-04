@@ -131,6 +131,25 @@ def _perception_checks(
             issues.append(_issue("WARNING", "depiction.too_literal",
                                  f"Head noun is {semantics.get('concreteness_band')}; a photograph is not licensed.", sid))
 
+        # EventMath: the QUANTIFIER is a claim about scope. Drawing every peer
+        # for a claim about some of them, or one mark for a claim about all,
+        # asserts a scope the speaker did not.
+        event = scene.get("event", {}) or {}
+        quantifier = str(event.get("quantifier", ""))
+        drawn = item_count(payload)
+        if quantifier == "partial" and drawn and drawn >= 3:
+            issues.append(_issue("WARNING", "eventmath.scope_overstated",
+                                 f"Claim is about SOME, but {drawn} peers are drawn as the whole set.", sid))
+        if quantifier == "one" and drawn >= 4:
+            issues.append(_issue("INFO", "eventmath.scope_widened",
+                                 f"Claim is singular but {drawn} peers are on screen.", sid))
+
+        # EventMath gaps: reported, never filled.
+        for gap in event.get("gaps", []) or []:
+            if gap in {"who", "when", "where"}:
+                issues.append(_issue("INFO", "eventmath.gap",
+                                     f"5W+H field '{gap}' was not stated; no mark may stand in for it.", sid))
+
         # 24. unfilled roles must stay unfilled
         for role in semantics.get("unfilled_core_roles", []) or []:
             issues.append(_issue("INFO", "frame.role_unfilled",

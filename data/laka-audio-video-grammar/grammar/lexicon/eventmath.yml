@@ -1,0 +1,186 @@
+version: 2.0.0
+name: LAVC EventMath Vocabulary
+# EventMath 2.0, as used across the Second Brain. Everything is an event, and an
+# event is who + what + where + when + why + how, composed of seven universal
+# elements, located by a LENS x DIRECTION x QUANTIFIER triple.
+#
+# This replaces nothing in image_schemas.yml — it sits above it. The schema says
+# what SHAPE a relation has; the triple says what the sentence is DOING, and the
+# elements say which slots exist to be drawn. Where the two disagree, the triple
+# wins, because it is the vocabulary the rest of the stack already speaks.
+#
+# Source: skills/eventmath, skills/eventmath-extraction,
+# references/eventmath-2.0-schema.md.
+
+# ---------------------------------------------------------------- the triple ---
+# A dimension = one LENS x one DIRECTION x one QUANTIFIER. Three knobs.
+lens:
+  order: [who, what, where, when, why, how]
+  triggers:
+    who: ['\bwho\b', '\bpeople\b', '\bteam\b', '\bcustomers?\b', '\baudience\b',
+          '\b(?:I|we|they|he|she)\s+(?:am|are|is|was|were)\b']
+    where: ['\bwhere\b', '\bin (?:Calgary|Edmonton|Toronto|Alberta|Canada)\b',
+            '\bat (?:home|work|the office)\b', '\bonline\b', '\bin person\b', '\bthe room\b']
+    when: ['\bwhen\b', '\b(?:19|20)\d{2}\b', '\bat (?:age )?(?:forty|thirty|twenty|fifty)',
+           '\b(?:before|after|during|until|since)\b', '\btoday\b', '\byesterday\b',
+           '\bevery (?:year|month|week|day)\b']
+    why: ['\bwhy\b', '\bbecause\b', '\bso that\b', '\bin order to\b', '\bthe reason\b',
+          '\bpurpose\b', '\bdue to\b']
+    how: ['\bhow\b', '\bby (?:using|building|making)\b', '\bthrough\b', '\bvia\b',
+          '\busing\b', '\bthe way\b', '\bmethod\b', '\bprocess\b', '\bstep']
+  # `what` is the default lens and needs no trigger: most propositions are about
+  # a thing rather than about its actor, place, time, reason or method.
+  default: what
+
+direction:
+  values: [direct, indirect_opposite, indirect_other, keep_same, more_same, less_same]
+  triggers:
+    indirect_opposite: ['\bbut\b', '\binstead(?: of)?\b', '\brather than\b', '\bdespite\b',
+                        '\bhowever\b', '\bwhereas\b', '\bon the other hand\b',
+                        '\bnot\b[^.]*\bbut\b', '\bversus\b', '\bagainst\b']
+    less_same: ['\bless\b', '\bfewer\b', '\bdecreas', '\breduc', '\bfell\b', '\bdropp',
+                '\bshrank\b', '\bshrink', '\bdeclin', '\blower(?:ed)?\b', '\bcut\b']
+    more_same: ['\bmore\b', '\bincreas', '\bgr(?:ew|ows?|owing)\b', '\bros[e]\b',
+                '\brise[sn]?\b', '\bclimb', '\badded\b', '\bdoubl', '\bexpand',
+                '\bhigher\b', '\bscal(?:e|ed|ing)\b']
+    direct: ['\bwent from\b', '\bfrom\b[^.]{2,60}\bto\b',
+             '\bcaus(?:es|ed)\b', '\bleads? to\b', '\bled to\b', '\bdrives?\b', '\bdrove\b',
+             '\bresults? in\b', '\bmakes?\b[^.]*\bhappen\b', '\bturns? .* into\b',
+             '\bso that\b', '\btherefore\b', '\bmeans that\b']
+    indirect_other: ['\bmeanwhile\b', '\bseparately\b', '\balso\b', '\banother\b',
+                     '\belsewhere\b', '\bat the same time\b', '\bas well as\b']
+  default: keep_same
+
+quantifier:
+  # Checked in this order: the more specific scope claim wins. "not all"
+  # is partial — a group survives — and must resolve before bare negation.
+  values: [partial, none, all, many, any, one]
+  triggers:
+    none: ['\bno\b(?!\s+longer)', '\bnone\b', '\bnothing\b', '\bnobody\b', '\bnever\b',
+           '\bnot\b(?!\s+(?:all|every|always))', "\\bn't\\b(?!\\s+(?:all|every))",
+           '\bneither\b', '\bzero\b']
+    all: ['\ball\b', '\bevery\b', '\beveryone\b', '\beverybody\b', '\beverything\b',
+          '\balways\b', '\bentire\b', '\bwhole\b', '\bcompletely\b']
+    partial: ['\bsome\b', '\ba few\b', '\bpart of\b', '\bpartly\b', '\bsometimes\b',
+              '\bmost\b', '\bmany of\b', '\bnot all\b', '\bhalf\b']
+    any: ['\bany\b', '\bwhichever\b', '\bwhatever\b', '\beither\b']
+    many: ['\bmany\b', '\bseveral\b', '\bmultiple\b', '\blots of\b', '\bdozens\b',
+           '\bhundreds\b', '\bthousands\b']
+  default: one
+  # Cardinality is the deterministic anchor: a payload carrying four peers is
+  # `many` whatever the words say. Matches the cardinality table in
+  # perception.yml, so the quantifier and the topology cannot disagree.
+  from_cardinality:
+    0: one
+    1: one
+    2: one
+    3: many
+    9: all
+
+# --------------------------------------------------- the 7 universal elements ---
+# Every event is composed of these. The visual grammar exists to draw them, and
+# this is the honest mapping: element -> the template family that states it.
+elements:
+  objects:
+    label: The things involved
+    templates: [list_stack, hierarchy_tree, network]
+    payload_keys: [items, nodes, children]
+  begin_state:
+    label: State before the event
+    templates: [before_after, transformation_arrow, problem_solution]
+    payload_keys: [left]
+  end_state:
+    label: State after the event
+    templates: [before_after, transformation_arrow, problem_solution]
+    payload_keys: [right]
+  actions:
+    label: What happened
+    templates: [steps, timeline, cycle]
+    payload_keys: [items, events]
+    # Objects, actions and tools all read from `items`, so without a language
+    # test every list claimed to be all three at once.
+    requires: ['\bfirst\b', '\bthen\b', '\bnext\b', '\bstart(?:s|ed|ing)?\b',
+               '\bstep\b', '\bprocess\b', '\bwe (?:do|did|build|built|make|made)\b',
+               '\b(?:look|work|move|go|take|turn|ask)(?:s|ed|ing)?\b']
+  tools:
+    label: What was used
+    templates: [network, list_stack]
+    payload_keys: [nodes, items]
+    requires: ['\busing\b', '\bvia\b', '\bthrough\b', '\bwith\b', '\btool',
+               '\bplatform\b', '\bsoftware\b', '\bsystem(?:s)? for\b', '\bbuilt on\b']
+  conditions:
+    label: What had to be true
+    templates: [condition_cards, cause_effect, warning_card]
+    payload_keys: [left, right, items]
+    # A prerequisite has to be stated as one. Without this every scene holding
+    # two sides claimed to be a condition, including plain lists.
+    requires: ['\bif\b', '\bwhen\b', '\bunless\b', '\buntil\b', '\bprovided that\b',
+               '\brequires?\b', '\bdepends? on\b', '\bonly (?:if|when)\b',
+               '\bhas to\b', '\bmust\b', '\bneed(?:s|ed)? to\b']
+  resources:
+    label: What was consumed
+    templates: [big_number, bar_chart, funnel]
+    payload_keys: [number, series]
+
+# A begin state with no end state is an incomplete transformation, and drawing
+# the pair anyway invents the half the speaker never said.
+element_pairs:
+  - [begin_state, end_state]
+
+# ------------------------------------------------------------- classification ---
+category:
+  order: [question, quote, decision, task, belief, feeling, idea, fact]
+  triggers:
+    question: ['\?\s*$', '^\s*(?:what|why|how|who|where|when|which|is|are|do|does|can|could|should)\b.*\?']
+    quote: ['^\s*["“]', '\bsaid\b', '\bput it\b', '\bin (?:his|her|their) words\b']
+    decision: ['\bwe (?:should|will|must|need to)\b', '\bdecided\b', '\bthe decision\b',
+               '\bwe chose\b', '\bgoing to\b', "\\blet's\\b"]
+    task: ['^\s*(?:bring|book|explore|start|stop|call|visit|download|join|try|build|make|check)\b',
+           '\byou (?:should|can|could|might)\b']
+    belief: ['\bI (?:think|believe|feel like|reckon)\b', '\bin my (?:view|opinion)\b',
+             '\bI would argue\b']
+    feeling: ['\bI (?:felt|feel)\b', '\bexhaust', '\bfrustrat', '\bproud\b', '\bafraid\b',
+              '\bexcited\b', '\bashamed\b', '\bangry\b', '\bgrateful\b']
+    idea: ['\bwhat if\b', '\bimagine\b', '\bcould be\b', '\bmight be\b', '\bidea\b',
+           '\bpossibility\b']
+  default: fact
+
+# Signal or noise. A segment that carries no proposition earns a caption and
+# nothing else — D0 on the density ladder. This is the coherence principle with
+# a switch on it: removing decorative material improves comprehension.
+noise:
+  patterns:
+    - '^\s*(?:so|and|but|well|okay|right|now|anyway|you know|I mean)[\s,.]*$'
+    - '^\s*(?:um+|uh+|er+|ah+)[\s,.]*$'
+    - '^\s*(?:yeah|yes|no|sure|exactly|absolutely)[\s,.]*$'
+  min_content_words: 3
+  min_content_ratio: 0.30
+
+# Where a fact came from. `stated` is in the transcript; `fetched` would be
+# AI-filled and must never be drawn as though the speaker said it.
+origin:
+  stated: spoken in the source
+  fetched: supplied by a model or a lookup
+  derived: computed from stated values
+
+# ------------------------------------------------------------------- actors ---
+actor_roles: [user, beneficiary, payer, designer, builder, seller, communicator]
+actor_classes: [stranger, family, co_worker, partner]
+
+actor_triggers:
+  # Ordered by priority, per the extraction skill.
+  labelled: ['(?:Organizer|Speaker|Guest|Host|Coordinator|Founder|Director):\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)']
+  preposition: ['\b(?:with|feat\.?|alongside)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)']
+  honorific: ['\b(?:Dr|Mr|Mrs|Ms|Prof)\.?\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)']
+  byline: ['\bby\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)']
+  dash_role: ['([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\s*[—–-]\s*(?:[A-Z]{2,}|Organizer|Director)']
+  action_verb: ['([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\s+(?:presented|proposed|agreed|sent|built|founded|launched)']
+
+# ------------------------------------------------------------------- gaps ---
+# The 5W+H fields that were not stated. A gap is REPORTED, never filled: an
+# invented actor or a fabricated date is the same failure as a fabricated
+# baseline on a bar chart.
+gap_policy:
+  fields: [who, what, when, where, why, how]
+  fill_from_model: false
+  draw_unfilled: false

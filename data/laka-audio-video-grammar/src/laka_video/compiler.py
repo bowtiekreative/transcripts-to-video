@@ -20,7 +20,7 @@ from .motion import compile_motion
 from .report import decision_report
 from .segmenter import build_audio_only_scenes, cues_to_units, units_to_scenes
 from .selector import TemplateSelector
-from .semantics import analyze as analyze_semantics, load_lexicon
+from .semantics import analyze as analyze_semantics, extract_event, load_lexicon
 from .srt import parse_srt
 from .studio import load_studio_library
 from .text_rules import TextRuleEngine
@@ -279,6 +279,12 @@ def compile_project(project_path: str | Path, grammar_dir: str | Path | None = N
         budget_record = fit_payload_to_budget(
             analysis["payload"], draft.text, max(0.01, draft.duration), perception
         )
+        # EventMath 2.0: the same event object the Second Brain speaks, so a
+        # storyboard scene and a brain node describe the world the same way.
+        event = extract_event(
+            draft.text, analysis["payload"], semantic_lexicon.eventmath,
+            semantic_lexicon, speaker=content.get("speaker"),
+        )
         data_bound = False
         data_key = overrides.get("data")
         if data_key and isinstance(data_doc, dict):
@@ -338,6 +344,7 @@ def compile_project(project_path: str | Path, grammar_dir: str | Path | None = N
             "sensitive": analysis["sensitive"],
             "continuity_key": continuity_key,
             "semantics": semantics.to_dict(),
+            "event": event.to_dict(),
             "reading_budget": budget_record,
             "words_per_second": scene_info["words_per_second"],
             "audio_features": features,

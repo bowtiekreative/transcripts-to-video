@@ -61,6 +61,7 @@ class Lexicon:
     concreteness_bands: dict[str, set[str]] = field(default_factory=dict)
     concreteness_thresholds: dict[str, float] = field(default_factory=dict)
     obligation_policy: dict[str, Any] = field(default_factory=dict)
+    eventmath: dict[str, Any] = field(default_factory=dict)
     # lemma -> pattern that must also match for the lemma to evoke its frame.
     frame_constraints: dict[str, re.Pattern[str]] = field(default_factory=dict)
 
@@ -167,6 +168,7 @@ def load_lexicon(grammar_dir: str | None = None) -> Lexicon:
     lex.modality_levels = (load_yaml(root / "modality.yml") if (root / "modality.yml").exists() else {}).get("levels", {}) or {}
     lex.negation = load_yaml(root / "negation.yml") if (root / "negation.yml").exists() else {}
     lex.metaphors = load_yaml(root / "metaphors.yml") if (root / "metaphors.yml").exists() else {}
+    lex.eventmath = load_yaml(root / "eventmath.yml") if (root / "eventmath.yml").exists() else {}
 
     # --- concreteness -------------------------------------------------------
     core = load_yaml(root / "concreteness_core.yml") if (root / "concreteness_core.yml").exists() else {}

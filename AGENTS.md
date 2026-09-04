@@ -62,6 +62,22 @@ Two failure modes to hold in mind, because both have already happened here:
 
 `composition.py` runs after selection, because rhythm, accent budget, carrier persistence and the ending are properties of the whole piece. Demotions there are ranked by relation fit: rhythm is a presentation concern and must never buy a worse claim.
 
+## EventMath
+
+The compiler speaks **EventMath 2.0**, the same event vocabulary as the Second Brain, so a storyboard scene and a brain node describe the world identically. `grammar/lexicon/eventmath.yml` holds it and `semantics/eventmath.py` extracts it — pure pattern matching, no model, no lookup, matching the brain's own engine.
+
+Every scene emits an event: who + what + where + when + why + how, the seven universal elements, and a **LENS × DIRECTION × QUANTIFIER** triple. Three knobs, the whole grammar.
+
+- **DIRECTION** is the motion: `direct`, `indirect_opposite`, `indirect_other`, `keep_same`, `more_same`, `less_same`. It says what the sentence is doing, which is upstream of what shape draws it.
+- **QUANTIFIER** is scope: `none`, `partial`, `one`, `many`, `all`, `any`. Cardinality anchors it — four peers on screen is `many` whatever the words say — but a scope word outranks a count, because "not all of them" stays partial with four names drawn. Reading "not all" as `none` negates a group the speaker left standing.
+- **The seven elements** map to template families: begin/end state to the pair, actions to steps and timelines, objects to lists, conditions to if/then, resources to quantity, tools to networks. A begin state with no end state is dropped rather than drawn as a pair, because the missing half would be invented.
+
+**Gaps are reported, never filled.** A 5W+H field the speaker did not state is listed in `gaps` and no mark may stand in for it. `gap_policy.fill_from_model` is `false` and must stay false: an invented actor or a fabricated date is the same class of failure as a fabricated baseline on a bar chart. First person resolving to the project's known speaker is not gap-filling — that is stated context.
+
+**`signal: false` forces D0.** Discourse filler carries a caption and nothing else. This is the coherence principle with a switch on it.
+
+Where EventMath and `image_schemas.yml` disagree, EventMath wins: the schema says what shape a relation has, the triple says what the sentence is doing, and the triple is the vocabulary the rest of the stack already speaks.
+
 ## Testing Guidelines
 
 Tests use `pytest` and follow `tests/test_<area>.py` with functions named `test_<behavior>`. Add focused unit tests for parser or rule changes and an integration assertion when generated storyboard behavior changes. Visual or brand changes must also satisfy `tests/test_design_system.py`; if a guard there is wrong, change the guard deliberately and say why in the commit. Verify repeatability, schema validity, and lint scores where applicable. Run `make test` before submitting changes; use `make demo` for compiler or grammar edits.

@@ -171,6 +171,15 @@ def apply_composition(
         order = (scene.get("selection_trace", {}).get("selected", {}) or {}).get("order") or {}
         chunks = int(order.get("chunks", chunk_count(str(scene.get("template")), payload)))
         scene["density_level"] = density_level(str(scene.get("template")), payload, chunks)
+        # A segment carrying no proposition earns a caption and nothing else.
+        # This is the coherence principle with a switch on it: removing
+        # decorative material improves comprehension, and discourse filler is
+        # exactly that.
+        if (scene.get("event") or {}).get("signal") is False:
+            scene["density_level"] = "D0"
+            scene.setdefault("composition_notes", []).append(
+                "EventMath classified this segment as noise; it carries a caption only"
+            )
 
     # --- rhythm: no two consecutive D3 -------------------------------------
     if rhythm.get("no_consecutive_max_density", True):
