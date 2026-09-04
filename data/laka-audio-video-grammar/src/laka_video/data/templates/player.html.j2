@@ -157,6 +157,7 @@
   // one-to-one with scene coordinates. Insetting the drift layer (as an earlier
   // build did) shifted every composition off its own left rail.
   function camera(scene,p) {
+    if (C.reduced_motion) return "transform:none;";
     if (!scene.motion?.parameters?.camera_drift) return "transform:none;";
     const e = Number(scene.motion?.parameters?.energy || .5);
     const scale = 1 + (.008 + .012*e) * p;

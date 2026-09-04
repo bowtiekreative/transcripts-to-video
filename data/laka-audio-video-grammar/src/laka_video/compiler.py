@@ -11,6 +11,7 @@ from jsonschema import validate
 
 from . import __version__
 from .audio import AudioAnalysis, analyze_audio
+from .accessibility import apply_reduced_motion
 from .budget import fit_payload_to_budget
 from .captions import build_captions
 from .html_renderer import render_preview
@@ -172,7 +173,11 @@ def _fill_payload_from_roles(payload: dict[str, Any], semantics: Any) -> None:
         payload.pop("left", None)
         payload.pop("right", None)
 
-def compile_project(project_path: str | Path, grammar_dir: str | Path | None = None) -> dict[str, Path]:
+def compile_project(
+    project_path: str | Path,
+    grammar_dir: str | Path | None = None,
+    reduced_motion: bool = False,
+) -> dict[str, Path]:
     project_file = Path(project_path).expanduser().resolve()
     if not project_file.exists():
         raise FileNotFoundError(f"Project file not found: {project_file}")
@@ -423,6 +428,13 @@ def compile_project(project_path: str | Path, grammar_dir: str | Path | None = N
     storyboard["composition_report"] = apply_composition(
         compiled_scenes, perception, float(composition_duration)
     )
+    # A reduced-motion cut is the SAME film with the movement removed: same
+    # scenes, same boundaries, same words, every duration kept and every
+    # translation dropped. It is an alternate render of one edit, not a second
+    # edit, so the two stay frame-for-frame in step.
+    if reduced_motion or bool(output_cfg.get("reduced_motion")) or bool((brand.get("motion") or {}).get("reduced_motion")):
+        storyboard = apply_reduced_motion(storyboard)
+
     storyboard = json_safe(storyboard)
     report = lint_storyboard(storyboard, defaults_runtime, template_library)
     storyboard["lint_summary"] = {k: v for k, v in report.items() if k != "issues"}

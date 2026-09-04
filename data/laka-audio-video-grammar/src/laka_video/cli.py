@@ -20,7 +20,7 @@ def _print_paths(paths: dict[str, Path]) -> None:
 
 
 def cmd_compile(args: argparse.Namespace) -> int:
-    paths = compile_project(args.project, args.grammar)
+    paths = compile_project(args.project, args.grammar, reduced_motion=getattr(args, "reduced_motion", False))
     _print_paths(paths)
     report = json.loads(paths["lint"].read_text(encoding="utf-8"))
     print(f"lint         {report['status']} ({report['score']}/100)")
@@ -30,7 +30,7 @@ def cmd_compile(args: argparse.Namespace) -> int:
 
 
 def cmd_render(args: argparse.Namespace) -> int:
-    paths = compile_project(args.project, args.grammar)
+    paths = compile_project(args.project, args.grammar, reduced_motion=getattr(args, "reduced_motion", False))
     report = json.loads(paths["lint"].read_text(encoding="utf-8"))
     if args.strict and report["status"] != "pass":
         print(f"Refusing render because lint status is {report['status']}.", file=sys.stderr)
@@ -137,6 +137,8 @@ def build_parser() -> argparse.ArgumentParser:
     compile_p = sub.add_parser("compile", help="Compile project YAML to storyboard and preview HTML")
     compile_p.add_argument("project")
     compile_p.add_argument("--strict", action="store_true", help="Return a failure code unless lint passes")
+    compile_p.add_argument("--reduced-motion", action="store_true",
+                           help="Keep every duration, drop every translation (WCAG 2.3.3)")
     compile_p.set_defaults(func=cmd_compile)
 
     render_p = sub.add_parser("render", help="Compile and render an MP4")
@@ -144,6 +146,8 @@ def build_parser() -> argparse.ArgumentParser:
     render_p.add_argument("--output", help="MP4 output path")
     render_p.add_argument("--quality", choices=["draft", "standard", "high"], default="standard")
     render_p.add_argument("--strict", action="store_true")
+    render_p.add_argument("--reduced-motion", action="store_true",
+                          help="Keep every duration, drop every translation (WCAG 2.3.3)")
     render_p.set_defaults(func=cmd_render)
 
     inspect_p = sub.add_parser("inspect-audio", help="Print deterministic acoustic analysis")

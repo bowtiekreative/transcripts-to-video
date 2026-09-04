@@ -4,6 +4,7 @@ import math
 from collections import Counter
 from typing import Any
 
+from .accessibility import audit_contrast, audit_motion, flesch_kincaid_grade
 from .ordering import chunk_count, item_count, motion_events_for, scan_seconds, visible_words_for
 from .utils import word_count
 
@@ -144,11 +145,16 @@ def _perception_checks(
             issues.append(_issue("INFO", "eventmath.scope_widened",
                                  f"Claim is singular but {drawn} peers are on screen.", sid))
 
-        # EventMath gaps: reported, never filled.
-        for gap in event.get("gaps", []) or []:
-            if gap in {"who", "when", "where"}:
-                issues.append(_issue("INFO", "eventmath.gap",
-                                     f"5W+H field '{gap}' was not stated; no mark may stand in for it.", sid))
+        # EventMath gaps: reported, never filled — but only where the gap is a
+        # hole rather than simply unstated context. A spoken monologue has no
+        # `where`, and saying so on every scene buries the findings that matter.
+        # The sharp case is a scene whose own LENS is the missing field: it is
+        # ABOUT the when, and the when was never said.
+        lens = str(event.get("lens", ""))
+        if lens in {"who", "when", "where", "why", "how"} and lens in (event.get("gaps") or []):
+            issues.append(_issue("WARNING", "eventmath.lens_gap",
+                                 f"Scene is framed on '{lens}' but never states it; "
+                                 f"no mark may stand in for the missing field.", sid))
 
         # 24. unfilled roles must stay unfilled
         for role in semantics.get("unfilled_core_roles", []) or []:
@@ -185,6 +191,25 @@ def _perception_checks(
             issues.append(_issue("INFO", "perception.transcription",
                                  f"{visible} of {spoken} spoken words are on screen "
                                  f"({visible / spoken:.0%} > {share_max:.0%}); the frame is transcribing, not composing.", sid))
+
+        # nd-ux: plain language. Grade 6-8 is the target across neurotypes, and
+        # a headline at grade 20 excludes people this speaker is speaking to.
+        grade = flesch_kincaid_grade(str(payload.get("headline") or ""))
+        if grade is not None and grade > 12:
+            issues.append(_issue("INFO", "access.reading_level",
+                                 f"Headline reads at grade {grade:.0f}; the plain-language target is 6-8.", sid))
+
+    # ---- accessibility, computed from the palette actually drawn ---------
+    for finding in audit_contrast(storyboard.get("brand", {}) or {}, perception):
+        if not finding["passes"]:
+            issues.append(_issue("ERROR", "access.contrast",
+                                 f"{finding['pair']} ({finding['label']}) is {finding['ratio']}:1, "
+                                 f"below the {finding['required']}:1 minimum."))
+    for finding in audit_motion(storyboard, perception):
+        if not finding["passes"]:
+            issues.append(_issue("WARNING", f"access.{finding['check']}",
+                                 f"{finding['check']} is {finding['value']} against a limit of {finding['limit']}.",
+                                 str(finding.get("scene_id") or "") or None))
 
     # ---- composition level, checks 17-20 ---------------------------------
     report = storyboard.get("composition_report", {}) or {}

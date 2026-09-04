@@ -154,6 +154,11 @@
     return String(scene.semantics?.motion_operator || "build_settle");
   }
 
+  // WCAG 2.3.3 / nd-ux: keep the duration, drop the travel. The reveal still
+  // times exactly as it does in the standard cut, so the two versions stay in
+  // step; only the movement is gone.
+  const REDUCED_MOTION = Boolean(C.reduced_motion);
+
   function revealStyle(p, scene, delayMs, riseUnits, value) {
     // An element carried over from the previous scene is already there.
     if (value !== undefined && isHeld(scene, value)) return heldStyle(p, scene);
@@ -172,8 +177,8 @@
     const span = 0.6 / duration;                       // --duration-base: 600ms
     const q = dsEase((p - start) / Math.max(0.0001, span));
 
-    if (operator === "static") {
-      // A state does not travel. Fade only.
+    if (operator === "static" || REDUCED_MOTION) {
+      // A state does not travel, and neither does anything in a reduced cut.
       return `opacity:${(q * exit).toFixed(4)};`;
     }
 

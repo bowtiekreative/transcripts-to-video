@@ -78,6 +78,17 @@ Every scene emits an event: who + what + where + when + why + how, the seven uni
 
 Where EventMath and `image_schemas.yml` disagree, EventMath wins: the schema says what shape a relation has, the triple says what the sentence is doing, and the triple is the vocabulary the rest of the stack already speaks.
 
+## Accessibility
+
+This compiler puts a neurodivergent speaker's own words on screen, so "reduce cognitive load first" is the brief, not a compliance checkbox (`nd-ux`; MOTION_MATH §7). `accessibility.py` enforces four things the rest of the pipeline could only measure.
+
+- **Contrast is computed, not assumed.** `audit_contrast` runs WCAG arithmetic over the pairs the renderer actually draws, not over the palette in the abstract — that would pass colours that never touch each other. A translucent colour is composited over its background first: a hairline at 8% alpha does not have the contrast of white, and scoring it as white passes a line nobody can see.
+- **Vestibular limits are checked per scene** — camera scale rate, total scale change, and a flicker check on very short scenes.
+- **`--reduced-motion` is a cut, not a second edit.** Same scenes, same boundaries, same words, every duration kept and every translation dropped (WCAG 2.3.3). The dolly goes too; a loop operator becomes static. Verified by comparing both cuts at the same timestamp: identical element count, identical text, transforms 1 → 0.
+- **Plain language** is measured with Flesch-Kincaid against the grade 6-8 target.
+
+A gap is only reported where it is a hole rather than unstated context. A spoken monologue has no `where`, and saying so on every scene buries the findings that matter; the sharp case is a scene whose own LENS is the missing field — it is *about* the when, and the when was never said.
+
 ## Testing Guidelines
 
 Tests use `pytest` and follow `tests/test_<area>.py` with functions named `test_<behavior>`. Add focused unit tests for parser or rule changes and an integration assertion when generated storyboard behavior changes. Visual or brand changes must also satisfy `tests/test_design_system.py`; if a guard there is wrong, change the guard deliberately and say why in the commit. Verify repeatability, schema validity, and lint scores where applicable. Run `make test` before submitting changes; use `make demo` for compiler or grammar edits.
