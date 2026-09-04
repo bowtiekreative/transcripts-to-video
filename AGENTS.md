@@ -26,9 +26,24 @@ Use `make clean` only to remove Python bytecode caches.
 
 Target Python 3.10+ and use four-space indentation, type hints for public APIs, and `pathlib.Path` for filesystem work. Follow existing naming: `snake_case` for modules, functions, and variables; `PascalCase` for classes; `UPPER_CASE` for constants. Keep grammar identifiers lowercase and descriptive, such as `transformation_arrow`. Preserve determinism: do not introduce remote inference, unseeded randomness, or hidden selection behavior.
 
+## Design System Contract
+
+Rendered frames are governed by the Ryan Perez / LAKA design system (`studio/_ds/.../readme.md` and `tokens/`). `src/laka_video/data/templates/studio-renderer.js` is the design authority; `player.html.j2` owns the frame chrome (canvas, backlight, grain, camera drift, caption band) and each scene renderer returns content only, in raw `W x H` coordinates. Do not repaint the chrome inside a scene, and do not add a second inset or drift layer — that shifts every composition off its left rail.
+
+Non-negotiables, each enforced by `tests/test_design_system.py`:
+
+- **Typeface.** Inter 400/600 only. The two licensed weights ship in `src/laka_video/data/fonts/` and are inlined as base64 `@font-face` rules by `utils.inline_font_face_css()`. Never reference a font by family name alone and never load one over the network — a render box has no fonts installed and would silently fall back.
+- **Colour.** `grammar/brand.example.yml` mirrors `tokens/colors.css` and `tokens/semantic.css` exactly. Change a colour in the tokens first, then here. Blue is the accent, not a decoration: the full-bleed CTA is the only saturated frame.
+- **Motion.** One curve, `cubic-bezier(0.16, 1, 0.3, 1)`, with a 24px rise and a 90ms stagger, timed in real milliseconds against scene duration. No overshoot, bounce, blink, pulse, rotation or particle field. Numbers are revealed at their exact value — a count-up puts wrong figures on screen for most of a scene, and precision is the brand.
+- **Type fitting.** Text is fitted by measurement (`fitText` / `fitTogether`), never truncated. A frame that ends in `…` is a bug. Related strings in one figure share one size.
+- **Composition.** One left rail. Statements are seated on the lower third with the micro-label holding the top of the safe area; figures get an exactly measured band under the head. Air belongs above the type or in the right-hand column, never as a dead strip under a bottom-heavy block.
+- **Repetition.** A headline that restates the figure below it, or a supporting line that restates the headline, is suppressed (`dropEchoes`). Captions that repeat the headline already on screen are dropped too.
+
+Text extraction has the same standard. Headlines are complete phrases (`text_rules._headline_span`), keep their subject, and never stop on a function word. Spoken web addresses are folded into real domains at transcript ingest (`utils.normalize_spoken_domains`), so "Ryan Perez dot c a" reaches the frame as `ryanperez.ca`.
+
 ## Testing Guidelines
 
-Tests use `pytest` and follow `tests/test_<area>.py` with functions named `test_<behavior>`. Add focused unit tests for parser or rule changes and an integration assertion when generated storyboard behavior changes. Verify repeatability, schema validity, and lint scores where applicable. Run `make test` before submitting changes; use `make demo` for compiler or grammar edits.
+Tests use `pytest` and follow `tests/test_<area>.py` with functions named `test_<behavior>`. Add focused unit tests for parser or rule changes and an integration assertion when generated storyboard behavior changes. Visual or brand changes must also satisfy `tests/test_design_system.py`; if a guard there is wrong, change the guard deliberately and say why in the commit. Verify repeatability, schema validity, and lint scores where applicable. Run `make test` before submitting changes; use `make demo` for compiler or grammar edits.
 
 ## Commit & Pull Request Guidelines
 

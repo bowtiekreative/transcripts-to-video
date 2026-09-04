@@ -1,15 +1,22 @@
+/* Inter 400/600 — the design system's only typeface, served locally so the
+   console never silently falls back to a system face. */
+@font-face{font-family:'Inter';font-style:normal;font-weight:400;font-display:swap;src:url('/fonts/Inter-Regular.woff2') format('woff2');}
+@font-face{font-family:'Inter';font-style:normal;font-weight:600;font-display:swap;src:url('/fonts/Inter-SemiBold.woff2') format('woff2');}
+
 :root {
   color-scheme: dark;
   --canvas: #07090D;
-  --surface: #0B0E14;
+  --surface: #1A1D24;
+  --surface-raised: #23262F;
   --heading: #F5F7FA;
   --body: #C5C7CE;
   --accent: #3F6EE9;
-  --accent-hover: #5A83EE;
-  --accent-press: #3459C4;
+  --accent-hover: #5B84EE;
+  --accent-press: #3259C4;
   --success: #3FA46A;
   --danger: #D8574F;
   --hairline: rgba(245, 247, 250, 0.15);
+  --hairline-soft: rgba(245, 247, 250, 0.08);
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;

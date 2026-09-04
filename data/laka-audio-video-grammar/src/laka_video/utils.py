@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import copy
 import hashlib
 import json
@@ -143,3 +144,89 @@ def json_safe(value: Any) -> Any:
     if isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
         return 0.0
     return value
+
+
+def default_font_dir() -> Path:
+    packaged = Path(__file__).resolve().parent / "data" / "fonts"
+    if packaged.exists():
+        return packaged
+    return package_root() / "fonts"
+
+
+def inline_font_face_css() -> str:
+    """Base64 @font-face rules for Inter 400/600.
+
+    The design system specifies Inter and nothing else. Referencing it by family
+    name only is not enough: a headless render box usually has no Inter installed,
+    so every frame silently falls back to a system face and the brand disappears.
+    Embedding the two licensed weights keeps rendering deterministic and offline.
+    """
+    font_dir = default_font_dir()
+    faces = [("Inter-Regular.woff2", 400), ("Inter-SemiBold.woff2", 600)]
+    rules: list[str] = []
+    for filename, weight in faces:
+        path = font_dir / filename
+        if not path.exists():
+            continue
+        encoded = base64.b64encode(path.read_bytes()).decode("ascii")
+        rules.append(
+            "@font-face{font-family:'Inter';font-style:normal;font-weight:%d;font-display:block;"
+            "src:url(data:font/woff2;base64,%s) format('woff2');}" % (weight, encoded)
+        )
+    return "\n".join(rules)
+
+
+# Dictated transcripts spell domains out loud: "ryan perez dot c a", "bow tie
+# kreative dot com". Left alone they become headlines like "Ryan Perez dot c a
+# is where", which is both ugly and factually not the address. Folding them back
+# into a real domain is deterministic and reversible by inspection.
+_TLD_SPELLINGS: dict[str, str] = {
+    "com": "com", "c o m": "com",
+    "ca": "ca", "c a": "ca",
+    "net": "net", "n e t": "net",
+    "org": "org", "o r g": "org",
+    "io": "io", "i o": "io",
+    "co": "co", "c o": "co",
+    "dev": "dev", "app": "app", "ai": "ai", "a i": "ai",
+}
+
+_DOMAIN_LEAD_IN = {
+    "visit", "go", "goto", "at", "to", "on", "see", "check", "head", "find", "the", "a", "an",
+    "my", "our", "your", "is", "its", "it", "and", "or", "but", "so", "from", "via", "over",
+}
+
+_SPOKEN_DOMAIN_RE = re.compile(
+    r"\b(?P<name>(?:[A-Za-z][\w'’-]*)(?:\s+[A-Za-z][\w'’-]*){0,3})"
+    r"\s+dot\s+"
+    r"(?P<tld>c\s*o\s*m|c\s*a|n\s*e\s*t|o\s*r\s*g|i\s*o|c\s*o|d\s*e\s*v|a\s*p\s*p|a\s*i)"
+    r"(?![\w'’-])",
+    flags=re.IGNORECASE,
+)
+
+
+def normalize_spoken_domains(text: str) -> str:
+    """Fold spoken web addresses back into written ones.
+
+    "Ryan Perez dot c a" -> "ryanperez.ca". Only the name words immediately in
+    front of "dot" are folded, and only when the trailing token is a real TLD
+    spelling, so ordinary prose containing the word "dot" is left alone.
+    """
+    def replace(match: re.Match[str]) -> str:
+        tld = _TLD_SPELLINGS.get(re.sub(r"\s+", " ", match.group("tld").lower()).strip())
+        if not tld:
+            return match.group(0)
+        # Only the name words belong in the domain. "Visit bow tie kreative dot
+        # com" is bowtiekreative.com, not visitbowtiekreative.com.
+        tokens = match.group("name").split()
+        while tokens and re.sub(r"[^\w]", "", tokens[0].lower()) in _DOMAIN_LEAD_IN:
+            tokens.pop(0)
+        if not tokens:
+            return match.group(0)
+        prefix = match.group("name")[: match.group("name").rfind(tokens[0])] if len(tokens) < len(match.group("name").split()) else ""
+        name = re.sub(r"['’]", "", " ".join(tokens))
+        name = re.sub(r"[^\w-]+", "", name).lower()
+        if not name:
+            return match.group(0)
+        return f"{prefix}{name}.{tld}"
+
+    return _SPOKEN_DOMAIN_RE.sub(replace, text or "")

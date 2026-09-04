@@ -6,7 +6,7 @@ from typing import Any
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from .utils import default_template_path
+from .utils import default_template_path, inline_font_face_css
 
 
 def render_preview(
@@ -28,6 +28,7 @@ def render_preview(
     studio_renderer_js = studio_renderer_path.read_text(encoding="utf-8") if studio_renderer_path.exists() else ""
     storyboard_json = json.dumps(storyboard, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
     html = template.render(
+        font_face_css=inline_font_face_css(),
         storyboard_json=storyboard_json,
         audio_src=audio_src,
         music_src=music_src or "",

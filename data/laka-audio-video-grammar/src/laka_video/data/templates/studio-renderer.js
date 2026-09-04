@@ -1,120 +1,552 @@
-  // LAVC Studio renderer — ported from studio/lavc-engine.js renderSceneV2.
-  // It keeps the Element Library's motion-first compositions as the output authority.
-  function studioHash(value) {
-    let hash=2166136261;
-    for (const character of String(value)) {
-      hash^=character.charCodeAt(0);
-      hash=Math.imul(hash,16777619);
+  // LAVC Studio renderer — the design authority for every frame.
+  //
+  // Rules this file is required to hold to (Ryan Perez / LAKA design system):
+  //   * One typeface (Inter), two weights (400 / 600). Drama comes from size and
+  //     tracking, never from a third weight or a second family.
+  //   * Huge tight headlines against tiny wide micro-labels. That tension IS the
+  //     typography.
+  //   * One strong left rail. Nothing is centred; emptiness is composed into the
+  //     right-hand column and above the statement, never left over underneath it.
+  //   * Depth from light, not shadows: a white backlight, 1px hairlines, one
+  //     surface tone above the canvas. No drop shadows anywhere.
+  //   * Motion is one ease-out curve with a 24px rise and a 90ms stagger.
+  //     Nothing bounces, blinks, pulses, spins or snaps.
+  //   * Text is fitted, never truncated. A frame that ends in "…" is a bug.
+  //   * A frame never repeats itself: a headline that restates the figure it sits
+  //     above is suppressed rather than shown twice.
+  //
+  // The frame chrome (canvas, backlight, grain, camera drift, caption band) is
+  // owned by renderAt in player.html.j2. This file returns scene content only,
+  // positioned in the raw W x H design space.
+
+  // ---------------------------------------------------------------- easing ---
+  // The design system's single curve: cubic-bezier(0.16, 1, 0.3, 1).
+  function dsEase(x) {
+    x = clamp(x);
+    if (x <= 0) return 0;
+    if (x >= 1) return 1;
+    const cx = 3 * 0.16, bx = 3 * (0.3 - 0.16) - cx, ax = 1 - cx - bx;
+    const cy = 3 * 1.0, by = 3 * (1.0 - 1.0) - cy, ay = 1 - cy - by;
+    const fx = u => ((ax * u + bx) * u + cx) * u;
+    const dfx = u => (3 * ax * u + 2 * bx) * u + cx;
+    let u = x;
+    for (let i = 0; i < 6; i++) {
+      const err = fx(u) - x;
+      if (Math.abs(err) < 1e-6) break;
+      const slope = dfx(u);
+      if (Math.abs(slope) < 1e-6) break;
+      u -= err / slope;
     }
-    return hash>>>0;
+    u = clamp(u);
+    return ((ay * u + by) * u + cy) * u;
   }
 
-  function studioTrim(value, limit) {
-    const tokens=String(value||"").trim().split(/\s+/).filter(Boolean);
-    return tokens.length>limit ? `${tokens.slice(0,limit).join(" ")}…` : tokens.join(" ");
+  // -------------------------------------------------------------- measuring ---
+  const MEASURE = document.createElement("canvas").getContext("2d");
+  const FALLBACK_STACK = "system-ui, -apple-system, 'Segoe UI', sans-serif";
+
+  function measureFont(size, weight, tracking) {
+    MEASURE.font = `${weight} ${size}px 'Inter', ${FALLBACK_STACK}`;
+    if ("letterSpacing" in MEASURE) MEASURE.letterSpacing = `${tracking * size}px`;
   }
 
-  function renderStudioTemplate(scene,p,t) {
-    if (scene.layout==="image_overlay") return renderTitle(scene,p);
-    if (["audio_wave","matrix"].includes(scene.template)) return renderTemplate(scene,p,t);
-    const P=scene.payload||{};
-    const items=P.items||P.nodes||P.children||[];
-    const seed=studioHash(scene.id);
-    const studioPhase=(start,end,easing=easeOut)=>easing(clamp((p-start)/Math.max(.0001,end-start)));
-    const micro=(text,delay=0)=>text ? `<div style="opacity:${studioPhase(delay,delay+.2)};font:600 ${px(2.4*U)}/1 ${font};letter-spacing:.14em;text-transform:uppercase;color:${colors.muted};">${esc(text)}</div>` : "";
-    const kinetic=(text,delay=.06,size=8,maxWidth=W*.8,color=colors.text)=>{
-      const tokens=String(text||"").split(/\s+/).slice(0,12);
-      return `<div style="display:flex;flex-wrap:wrap;gap:${px(size*.26*U)} ${px(size*.22*U)};max-width:${px(maxWidth)};">${tokens.map((word,index)=>{
-        const q=studioPhase(delay+index*.045,delay+index*.045+.22);
-        return `<span style="display:inline-block;opacity:${q};transform:translateY(${px((1-q)*3*U)}) rotate(${((1-q)*2).toFixed(1)}deg);font:600 ${px(size*U)}/1.02 ${font};letter-spacing:-.05em;color:${color};">${esc(word)}</span>`;
-      }).join("")}</div>`;
-    };
-    const dotField=(density=7,dim=.16)=>{
-      let dots="";
-      const spacing=Math.min(W,H)/density;
-      for(let row=0;row<density+2;row++) for(let column=0;column<Math.ceil(W/spacing)+1;column++) {
-        const index=row*13+column;
-        const offset=(seed%97)/97*Math.PI*2+index*.7;
-        const x=column*spacing+Math.sin(t*.5+offset)*U*.9;
-        const y=row*spacing+Math.cos(t*.36+offset*1.3)*U*.9;
-        const q=studioPhase(.02+((index*37)%20)/100,.3);
-        dots+=`<div style="position:absolute;left:${px(x)};top:${px(y)};width:${px(.5*U)};height:${px(.5*U)};border-radius:50%;background:${colors.muted};opacity:${(dim*q).toFixed(2)};"></div>`;
+  function wrapLines(text, boxWidth, size, weight, tracking) {
+    const source = String(text || "").trim();
+    if (!source) return [];
+    measureFont(size, weight, tracking);
+    const tokens = source.split(/\s+/);
+    const out = [];
+    let current = "";
+    for (const token of tokens) {
+      const candidate = current ? `${current} ${token}` : token;
+      if (current && MEASURE.measureText(candidate).width > boxWidth) {
+        out.push(current);
+        current = token;
+      } else {
+        current = candidate;
       }
-      return dots;
-    };
-    let body="";
+    }
+    if (current) out.push(current);
+    return out;
+  }
 
-    if (scene.template==="big_number") {
-      const percentage=/%/.test(P.number||"");
-      const value=parseFloat(String(P.number||0).replace(/[^\d.]/g,""))||0;
-      const shown=Math.round(value*studioPhase(.1,.9,easeInOut));
-      const cx=landscape?W*.32:W*.5, cy=H*(landscape?.5:.42), size=Math.min(W,H)*.56;
-      let ring="";
-      if (percentage) {
-        const radius=size/2-2*U, q=studioPhase(.1,1,easeInOut), circumference=2*Math.PI*radius;
-        ring=`<svg style="position:absolute;left:${px(cx-size/2)};top:${px(cy-size/2)};" width="${size}" height="${size}"><circle cx="${size/2}" cy="${size/2}" r="${radius}" fill="none" stroke="${colors.hairSoft}" stroke-width="${1.1*U}"/><circle cx="${size/2}" cy="${size/2}" r="${radius}" fill="none" stroke="${colors.accent}" stroke-width="${1.1*U}" stroke-linecap="round" stroke-dasharray="${circumference}" stroke-dashoffset="${circumference*(1-clamp(value/100)*q)}" transform="rotate(-90 ${size/2} ${size/2})"/></svg>`;
+  // Fit text into a box by stepping the size down. Never truncates: a headline
+  // that has to shrink is honest, a headline that ends in "…" is not.
+  function fitText(text, boxWidth, boxHeight, options) {
+    const opt = Object.assign({ max: 12, min: 4.4, weight: 600, tracking: -0.05, leading: 1.02, maxLines: 6 }, options || {});
+    const source = String(text || "").trim();
+    if (!source) return { lines: [], size: opt.min * U, leading: opt.leading, height: 0 };
+    for (let step = 0; step <= 44; step++) {
+      const size = (opt.max - (opt.max - opt.min) * (step / 44)) * U;
+      const lines = wrapLines(source, boxWidth, size, opt.weight, opt.tracking);
+      const height = lines.length * size * opt.leading;
+      if (lines.length <= opt.maxLines && height <= boxHeight) {
+        return { lines, size, leading: opt.leading, height };
       }
-      body=`${ring}<div style="position:absolute;left:${px(cx)};top:${px(cy)};transform:translate(-50%,-50%);font:600 ${px(15*U)}/.9 ${font};letter-spacing:-.06em;color:${colors.text};">${shown}${percentage?`<span style="font-size:.45em;color:${colors.accent};">%</span>`:""}</div><div style="position:absolute;${landscape?`left:${px(W*.58)};right:${px(edge)};top:50%;transform:translateY(-50%);`:`left:${px(edge)};right:${px(edge)};top:${px(H*.68)};`}display:flex;flex-direction:column;gap:${px(2*U)};">${micro(P.unit||"Measured",.02)}${kinetic(P.label,.5,4.6,landscape?W*.36:W*.85,colors.body)}</div>`;
-    } else if (scene.template==="bar_chart") {
-      const series=arr(P.series).slice(0,8), max=Math.max(1,...series.map(item=>Number(item.value)||0));
-      const chartHeight=H*(landscape?.5:.36), barWidth=Math.min(14*U,(W-edge*2)/(Math.max(1,series.length)*1.8)), gap=barWidth*.8;
-      const left=(W-(series.length*barWidth+Math.max(0,series.length-1)*gap))/2, base=H*(landscape?.72:.62);
-      const bars=series.map((item,index)=>{
-        const q=studioPhase(.2+index*.12,.6+index*.12,easeInOut), height=chartHeight*(Number(item.value)||0)/max*q;
-        return `<div style="position:absolute;left:${px(left+index*(barWidth+gap))};top:${px(base-height)};width:${px(barWidth)};height:${px(height)};border-radius:${px(.8*U)} ${px(.8*U)} 0 0;background:${index===0?colors.accent:colors.raised};border:1px solid ${index===0?colors.accent:colors.hair};"></div><div style="position:absolute;left:${px(left+index*(barWidth+gap)-gap/2)};top:${px(base-height-4.6*U)};width:${px(barWidth+gap)};text-align:center;font:600 ${px(3.4*U)}/1 ${font};color:${colors.text};opacity:${q};">${Math.round((Number(item.value)||0)*q)}${esc(item.unit||"")}</div><div style="position:absolute;left:${px(left+index*(barWidth+gap)-gap/2)};top:${px(base+1.6*U)};width:${px(barWidth+gap)};text-align:center;font:600 ${px(2.4*U)}/1.2 ${font};letter-spacing:.08em;text-transform:uppercase;color:${colors.muted};opacity:${q};">${esc(studioTrim(item.label,2))}</div>`;
-      }).join("");
-      body=`<div style="position:absolute;left:${px(edge)};right:${px(edge)};top:${px(base)};height:1px;background:${colors.hair};transform:scaleX(${studioPhase(.08,.4,easeInOut)});"></div>${bars}<div style="position:absolute;left:${px(edge)};right:${px(edge)};top:${px(H*.1)};display:flex;flex-direction:column;gap:${px(1.8*U)};">${micro(P.unit==="Share"?"Share":"Data",.02)}${kinetic(P.headline,.06,6.2,W*.8)}</div>`;
-    } else if (["before_after","comparison_split","transformation_arrow","cause_effect","problem_solution","condition_cards"].includes(scene.template)) {
-      const count=14, leftX=landscape?W*.28:W*.5, leftY=landscape?H*.52:H*.34, rightX=landscape?W*.72:W*.5, rightY=landscape?H*.52:H*.66, radius=Math.min(W,H)*.13;
-      const organize=studioPhase(.3,.75,easeInOut);
-      let dots="";
-      for(let index=0;index<count;index++) {
-        const jitter=axis=>((studioHash(`${scene.id}|${index}|${axis}`)%1000)/1000-.5);
-        const startX=leftX+jitter(1)*radius*2.4, startY=leftY+jitter(2)*radius*2.4, angle=index/count*Math.PI*2;
-        const endX=rightX+Math.cos(angle)*radius, endY=rightY+Math.sin(angle)*radius;
-        const x=startX+(endX-startX)*organize, y=startY+(endY-startY)*organize, q=studioPhase(.08+index*.02,.28+index*.02);
-        dots+=`<div style="position:absolute;left:${px(x-U*.8)};top:${px(y-U*.8)};width:${px(1.6*U)};height:${px(1.6*U)};border-radius:50%;background:${organize>.6?colors.accent:colors.muted};opacity:${q};"></div>`;
+    }
+    const size = opt.min * U;
+    const lines = wrapLines(source, boxWidth, size, opt.weight, opt.tracking);
+    return { lines, size, leading: opt.leading, height: lines.length * size * opt.leading };
+  }
+
+  // Fit a set of strings at one shared size, so a list reads as one list rather
+  // than as several unrelated labels that happened to land near each other.
+  function fitTogether(values, boxWidth, boxHeight, options) {
+    const opt = Object.assign({ max: 4.4, min: 2.2, weight: 600, tracking: -0.03, leading: 1.18, maxLines: 2 }, options || {});
+    for (let step = 0; step <= 44; step++) {
+      const size = (opt.max - (opt.max - opt.min) * (step / 44)) * U;
+      const wrapped = values.map(value => wrapLines(value, boxWidth, size, opt.weight, opt.tracking));
+      const tallest = Math.max(0, ...wrapped.map(lines => lines.length));
+      if (tallest <= opt.maxLines && tallest * size * opt.leading <= boxHeight) {
+        return { wrapped, size, leading: opt.leading, lineHeight: size * opt.leading };
       }
-      const arrowQ=studioPhase(.34,.6,easeInOut);
-      const arrow=landscape?`<div style="position:absolute;left:${px(leftX+radius*1.4)};top:${px(leftY)};width:${px((rightX-leftX-radius*2.8)*arrowQ)};height:${px(.4*U)};background:${colors.accent};"></div><div style="position:absolute;left:${px(leftX+radius*1.4+(rightX-leftX-radius*2.8)*arrowQ)};top:${px(leftY-2*U)};opacity:${arrowQ};font:600 ${px(4*U)}/1 ${font};color:${colors.accent};">→</div>`:`<div style="position:absolute;left:50%;top:${px(leftY+radius*1.5)};transform:translateX(-50%) rotate(90deg);opacity:${arrowQ};font:600 ${px(4.6*U)}/1 ${font};color:${colors.accent};">→</div>`;
-      const labels={before_after:["Before","After"],comparison_split:["A","B"],cause_effect:["Cause","Effect"],problem_solution:["Problem","Response"],condition_cards:["If","Then"]}[scene.template]||["From","To"];
-      const tag=(text,label,x,y,q,hot)=>`<div style="position:absolute;left:${px(x)};top:${px(y)};transform:translateX(-50%);text-align:center;opacity:${q};display:flex;flex-direction:column;gap:${px(U)};align-items:center;max-width:${px(landscape?W*.34:W*.8)};"><div style="font:600 ${px(2.4*U)}/1 ${font};letter-spacing:.14em;text-transform:uppercase;color:${hot?colors.accent2:colors.muted};">${esc(label)}</div><div style="font:600 ${px(4.4*U)}/1.18 ${font};letter-spacing:-.03em;color:${colors.text};">${esc(studioTrim(text,6))}</div></div>`;
-      body=`${dots}${arrow}${tag(P.left,labels[0],leftX,leftY+radius*1.9,studioPhase(.14,.34),false)}${tag(P.right,labels[1],rightX,rightY+radius*1.9,studioPhase(.55,.8),true)}<div style="position:absolute;left:${px(edge)};right:${px(edge)};top:${px(H*.09)};">${kinetic(P.headline,.04,6.8,W*.84)}</div>`;
-    } else if (["list_stack","steps","timeline","funnel"].includes(scene.template)) {
-      const values=(P.events&&P.events.length?P.events.map(event=>event.event):items).slice(0,6), ordered=scene.template!=="list_stack";
-      const columns=landscape?Math.min(3,Math.max(1,values.length)):1, rows=Math.ceil(values.length/columns), cellWidth=(W-edge*2-(columns-1)*3*U)/columns, cellHeight=Math.min(16*U,(H*.52)/Math.max(1,rows)-2*U);
-      const cells=values.map((value,index)=>{
-        const q=studioPhase(.18+index*.1,.44+index*.1,easeBack), x=edge+(index%columns)*(cellWidth+3*U), y=H*.34+Math.floor(index/columns)*(cellHeight+2.4*U), glyph=ordered?String(index+1).padStart(2,"0"):"→";
-        return `<div style="position:absolute;left:${px(x)};top:${px(y)};width:${px(cellWidth)};height:${px(cellHeight)};display:flex;align-items:center;gap:${px(2.2*U)};padding:0 ${px(2.4*U)};border:1px solid ${colors.hairSoft};border-radius:${px(1.4*U)};background:${colors.surface};opacity:${q};transform:scale(${.88+.12*q}) translateY(${px((1-q)*2*U)});"><div style="font:600 ${px(4.6*U)}/1 ${font};color:${colors.accent};">${glyph}</div><div style="font:600 ${px(3.2*U)}/1.2 ${font};letter-spacing:-.02em;color:${colors.text};">${esc(studioTrim(value,5))}</div></div>`;
-      }).join("");
-      body=`${cells}<div style="position:absolute;left:${px(edge)};right:${px(edge)};top:${px(H*.1)};display:flex;flex-direction:column;gap:${px(1.8*U)};">${micro(P.label||(ordered?"In order":"Key points"),.02)}${kinetic(P.headline,.06,6.2,W*.84)}</div>`;
-    } else if (["network","cycle","hierarchy_tree"].includes(scene.template)) {
-      const nodes=items.slice(0,6), cx=landscape?W*.64:W*.5, cy=landscape?H*.52:H*.58, radius=Math.min(W*(landscape?.22:.34),H*.26), centerQ=studioPhase(.06,.28,easeBack), edgeQ=studioPhase(.25,.7,easeInOut);
-      let lines="", labels="";
-      nodes.forEach((node,index)=>{
-        const angle=-Math.PI/2+Math.PI*2*index/Math.max(1,nodes.length)+Math.sin(t*.4+index)*.02, x=cx+Math.cos(angle)*radius, y=cy+Math.sin(angle)*radius, q=studioPhase(.3+index*.07,.5+index*.07,easeBack);
-        if (scene.template==="cycle"&&nodes.length>1) { const next=-Math.PI/2+Math.PI*2*((index+1)%nodes.length)/nodes.length; lines+=`<line x1="${x}" y1="${y}" x2="${cx+Math.cos(next)*radius}" y2="${cy+Math.sin(next)*radius}" stroke="${colors.accent}" stroke-width="${.3*U}" opacity="${edgeQ*.7}"/>`; }
-        else lines+=`<line x1="${cx}" y1="${cy}" x2="${cx+(x-cx)*edgeQ}" y2="${cy+(y-cy)*edgeQ}" stroke="${colors.hair}" stroke-width="${.28*U}"/>`;
-        const pulse=1+.05*Math.sin(t*2+index*1.3), text=typeof node==="object"?node.event:node;
-        labels+=`<div style="position:absolute;left:${px(x-2*U)};top:${px(y-2*U)};width:${px(4*U)};height:${px(4*U)};border-radius:50%;background:${colors.accent};opacity:${q};transform:scale(${(.7+.3*q)*pulse});"></div><div style="position:absolute;left:${px(x-9*U)};top:${px(y+3*U)};width:${px(18*U)};text-align:center;opacity:${q};font:600 ${px(2.7*U)}/1.2 ${font};color:${colors.body};">${esc(studioTrim(text,3))}</div>`;
+    }
+    const size = opt.min * U;
+    const wrapped = values.map(value => wrapLines(value, boxWidth, size, opt.weight, opt.tracking));
+    return { wrapped, size, leading: opt.leading, lineHeight: size * opt.leading };
+  }
+
+  // ------------------------------------------------------------ composition ---
+  const MICRO_SIZE = 2.6 * U;
+  const HEAD_GAP = 1.6 * U;
+  const BAND_GAP = 3.4 * U;
+
+  // Every scene composes into the same safe area so cuts never jump.
+  function frameBox() {
+    const reserve = (STORY.captions && C.captions !== "none")
+      ? captionReserve + 2.4 * U   // exactly where the caption flood begins
+      : 4 * U;
+    const top = H * 0.085;
+    const bottom = H - reserve;
+    return {
+      left: edge,
+      width: W - edge * 2,
+      top, bottom,
+      height: bottom - top,
+      // The rail the type sits on. The rest of the width is the column the
+      // design system leaves deliberately empty.
+      rail: (W - edge * 2) * (landscape ? 0.62 : 0.94),
+    };
+  }
+
+  function revealStyle(p, scene, delayMs, riseUnits) {
+    const duration = Math.max(0.001, scene.end - scene.start);
+    const span = 0.6 / duration;                       // --duration-base: 600ms
+    const start = (delayMs / 1000) / duration;
+    const q = dsEase((p - start) / Math.max(0.0001, span));
+    const exit = 1 - dsEase((p - 0.94) / 0.06);
+    const rise = (riseUnits === undefined ? 2.4 : riseUnits) * U;   // --rise: 24px
+    return `opacity:${(q * exit).toFixed(4)};transform:translateY(${px((1 - q) * rise)});`;
+  }
+
+  function revealAmount(p, scene, delayMs, durationMs) {
+    const duration = Math.max(0.001, scene.end - scene.start);
+    const start = (delayMs / 1000) / duration;
+    const span = ((durationMs === undefined ? 600 : durationMs) / 1000) / duration;
+    return dsEase((p - start) / Math.max(0.0001, span));
+  }
+
+  // Micro-label: tiny and wide, the counterweight to the headline.
+  function microLabel(text, p, scene, delayMs, color) {
+    if (!text) return "";
+    return `<div style="${revealStyle(p, scene, delayMs === undefined ? 0 : delayMs, 1.2)}font:600 ${px(MICRO_SIZE)}/1 ${font};letter-spacing:.12em;text-transform:uppercase;color:${color || colors.muted};">${esc(String(text).toUpperCase())}</div>`;
+  }
+
+  // Headlines reveal line by line, like a shot list — never word by word.
+  function headlineLines(fitted, p, scene, options) {
+    const opt = Object.assign({ color: colors.text, delay: 90, stagger: 90 }, options || {});
+    if (!fitted.lines.length) return "";
+    const rendered = fitted.lines.map((line, index) =>
+      `<div style="${revealStyle(p, scene, opt.delay + index * opt.stagger)}font:600 ${px(fitted.size)}/${fitted.leading} ${font};letter-spacing:-.05em;color:${opt.color};white-space:pre;">${esc(line)}</div>`
+    ).join("");
+    return `<div style="display:flex;flex-direction:column;">${rendered}</div>`;
+  }
+
+  function headlineBlock(text, p, scene, box, options) {
+    const opt = Object.assign({ max: 12.4, min: 5.2, maxLines: 5 }, options || {});
+    const fitted = fitText(text, box.width, box.height, {
+      max: opt.max, min: opt.min, weight: 600, tracking: -0.05, leading: 1.02, maxLines: opt.maxLines,
+    });
+    return headlineLines(fitted, p, scene, opt);
+  }
+
+  function bodyText(text, p, scene, box, delayMs, color) {
+    if (!text) return "";
+    const fitted = fitText(text, box.width, box.height, {
+      max: 3.8, min: 2.6, weight: 400, tracking: -0.012, leading: 1.5, maxLines: 5,
+    });
+    if (!fitted.lines.length) return "";
+    return `<div style="${revealStyle(p, scene, delayMs === undefined ? 420 : delayMs)}font:400 ${px(fitted.size)}/${fitted.leading} ${font};letter-spacing:-.012em;color:${color || colors.body};max-width:${px(box.width)};">${esc(fitted.lines.join(" "))}</div>`;
+  }
+
+  // A statement frame: the micro-label holds the top of the safe area, the
+  // statement is seated on the lower third. The air between them is the
+  // composition — it is not space the layout failed to fill.
+  function statementFrame(eyebrow, block) {
+    const box = frameBox();
+    return `<div style="position:absolute;left:${px(box.left)};top:${px(box.top)};width:${px(box.rail)};height:${px(box.height)};">
+      <div style="position:absolute;left:0;top:0;">${eyebrow}</div>
+      <div style="position:absolute;left:0;bottom:0;width:100%;display:flex;flex-direction:column;align-items:flex-start;gap:${px(2.4 * U)};">${block}</div>
+    </div>`;
+  }
+
+  // A structured frame: micro-label and headline hold the top, the figure gets
+  // an exactly measured band underneath. Nothing is guessed, so no dead strip
+  // opens up at the bottom of the frame.
+  function structuredFrame(head, figureFor) {
+    const box = frameBox();
+    const bandTop = box.top + head.height + BAND_GAP;
+    const bandHeight = Math.max(8 * U, box.bottom - bandTop);
+    // A figure under a headline is seated on the bottom of the band, so the air
+    // collects between the two. A figure with no headline above it has no reason
+    // to hug the caption band, so it takes the whole band instead.
+    const band = { left: box.left, top: bandTop, width: box.width, height: bandHeight, hasHead: Boolean(head.hasHeadline) };
+    return `<div style="position:absolute;left:${px(box.left)};top:${px(box.top)};width:${px(box.rail)};display:flex;flex-direction:column;gap:${px(HEAD_GAP)};">${head.html}</div>
+      <div style="position:absolute;left:${px(band.left)};top:${px(band.top)};width:${px(band.width)};height:${px(band.height)};">${figureFor(band)}</div>`;
+  }
+
+  // Builds the head block and reports exactly how tall it is.
+  function buildHead(scene, p, label, headline, options) {
+    const box = frameBox();
+    const opt = Object.assign({ max: 8.6, min: 4.2, maxLines: 3 }, options || {});
+    const fitted = fitText(headline, box.rail, box.height * 0.34, {
+      max: opt.max, min: opt.min, weight: 600, tracking: -0.05, leading: 1.02, maxLines: opt.maxLines,
+    });
+    const hasLabel = Boolean(label);
+    const height = (hasLabel ? MICRO_SIZE : 0) + (hasLabel && fitted.height ? HEAD_GAP : 0) + fitted.height;
+    return {
+      html: microLabel(label, p, scene, 0) + headlineLines(fitted, p, scene, {}),
+      height,
+      // A lone micro-label is not a head to hang a figure under: without a
+      // headline above it the figure takes the whole band.
+      hasHeadline: fitted.lines.length > 0,
+    };
+  }
+
+  // A frame that says the same thing twice is noise. Two strings echo each other
+  // when they are equal, or when the longer simply contains the shorter and the
+  // shorter is substantial enough for the repeat to be visible.
+  const textNorm = value => String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+
+  function echoes(a, b) {
+    const left = textNorm(a), right = textNorm(b);
+    if (!left || !right) return false;
+    if (left === right) return true;
+    const [shortText, longText] = left.length <= right.length ? [left, right] : [right, left];
+    return shortText.split(" ").length >= 4 && longText.includes(shortText);
+  }
+
+  function dropEchoes(value, others) {
+    for (const other of others) {
+      if (echoes(value, other)) return "";
+    }
+    return value;
+  }
+
+  const headlineUnlessEcho = dropEchoes;
+
+  // ------------------------------------------------------------------ rows ---
+  // The design system's List: an accent arrow or a zero-padded accent numeral,
+  // separated by hairlines. Never a bullet, never a card with a hollow interior.
+  function rowStack(values, p, scene, ordered, band) {
+    const items = arr(values).filter(Boolean).slice(0, 6);
+    if (!items.length) return "";
+    const glyphWidth = 5.4 * U;
+    const rowPad = 1.6 * U;
+    const textWidth = band.width - glyphWidth;
+    const perRow = band.height / items.length;
+    // A short list gets big type rather than the same small type floating in a
+    // tall band. Type scale carries the emphasis; the air stays above the list,
+    // under the headline, where the design system wants it.
+    const rowMax = items.length <= 2 ? 7.2 : items.length <= 4 ? 5.8 : 4.6;
+    // A short list can afford a third line. Forcing two lines on a long row just
+    // shrinks the whole list to fit the one item that did not want to wrap.
+    const rowLines = items.length <= 3 ? 3 : 2;
+    const fit = fitTogether(items, textWidth, perRow - rowPad * 2, { max: rowMax, min: 2.4, maxLines: rowLines });
+    const rows = items.map((value, index) => {
+      const style = revealStyle(p, scene, 260 + index * 90);
+      const glyph = ordered
+        ? `<span style="font:600 ${px(fit.size * 0.82)}/1 ${font};letter-spacing:-.02em;color:${colors.accent};font-variant-numeric:tabular-nums;">${String(index + 1).padStart(2, "0")}</span>`
+        : `<span style="font:600 ${px(fit.size * 0.9)}/1 ${font};color:${colors.accent};">&#8594;</span>`;
+      return `<div style="${style}display:flex;align-items:baseline;gap:${px(2.4 * U)};padding:${px(rowPad)} 0;border-top:1px solid ${index === 0 ? "transparent" : colors.hairSoft};">
+        <div style="flex:0 0 ${px(glyphWidth - 2.4 * U)};">${glyph}</div>
+        <div style="flex:1 1 auto;font:600 ${px(fit.size)}/${fit.leading} ${font};letter-spacing:-.03em;color:${colors.text};">${esc(fit.wrapped[index].join(" "))}</div></div>`;
+    }).join("");
+    // Seated on the bottom of the band: the air lands between the headline and
+    // the list, where it reads as air.
+    const seat = band.hasHead ? "bottom:0;" : "top:0;bottom:0;justify-content:center;";
+    return `<div style="position:absolute;left:0;right:0;${seat}display:flex;flex-direction:column;">${rows}</div>`;
+  }
+
+  // -------------------------------------------------------------- templates ---
+  function renderStudioTemplate(scene, p, t) {
+    if (scene.layout === "image_overlay") return renderTitle(scene, p);
+    if (scene.template === "matrix") return renderTemplate(scene, p, t);
+
+    const P = scene.payload || {};
+    const box = frameBox();
+    const items = arr(P.items || P.nodes || P.children);
+    const template = scene.template;
+    const speaker = STORY.content?.speaker || "";
+
+    // ---- statement family ---------------------------------------------------
+    if (template === "title_card" || template === "quote_focus") {
+      const quote = template === "quote_focus";
+      const eyebrow = quote
+        ? `<div style="${revealStyle(p, scene, 0, 1.2)}font:600 ${px(7 * U)}/.62 ${font};color:${colors.accent};">&#8220;</div>`
+        : microLabel(P.label || speaker, p, scene, 0);
+      const supporting = headlineUnlessEcho(P.supporting, [P.headline]);
+      return statementFrame(eyebrow,
+        headlineBlock(P.headline || scene.text, p, scene, { width: box.rail, height: box.height * 0.66 }, { max: 12.4, min: 5.4, maxLines: 5 }) +
+        bodyText(supporting, p, scene, { width: box.rail, height: box.height * 0.16 }, 480)
+      );
+    }
+
+    if (template === "question_card") {
+      return statementFrame(microLabel(P.label || "The question", p, scene, 0),
+        headlineBlock(P.headline || scene.text, p, scene, { width: box.rail, height: box.height * 0.66 }, { max: 11.6, min: 5.2, maxLines: 5 }) +
+        `<div style="${revealStyle(p, scene, 520, 1.2)}width:${px(6 * U)};height:${px(.34 * U)};background:${colors.accent};"></div>`
+      );
+    }
+
+    if (template === "definition_card") {
+      const line = revealAmount(p, scene, 380, 900);
+      return statementFrame(microLabel(P.label || "Definition", p, scene, 0),
+        headlineBlock(P.term || P.headline, p, scene, { width: box.rail, height: box.height * 0.44 }, { max: 12, min: 5.4, maxLines: 3 }) +
+        `<div style="height:${px(.34 * U)};width:${pct(line * 0.44)};background:${colors.accent};"></div>` +
+        bodyText(P.definition || P.supporting, p, scene, { width: box.rail, height: box.height * 0.24 }, 560)
+      );
+    }
+
+    if (template === "warning_card") {
+      const eyebrow = `<div style="${revealStyle(p, scene, 0, 1.2)}display:flex;align-items:center;gap:${px(1.8 * U)};">
+           <span style="width:${px(4 * U)};height:${px(4 * U)};border-radius:50%;border:${px(.26 * U)} solid ${colors.danger};display:grid;place-items:center;font:600 ${px(2.6 * U)}/1 ${font};color:${colors.danger};">!</span>
+           <span style="font:600 ${px(MICRO_SIZE)}/1 ${font};letter-spacing:.12em;text-transform:uppercase;color:${colors.danger};">${esc(String(P.label || "Important").toUpperCase())}</span>
+         </div>`;
+      return statementFrame(eyebrow,
+        headlineBlock(P.headline || scene.text, p, scene, { width: box.rail, height: box.height * 0.58 }, { max: 11, min: 5.2, maxLines: 5 }) +
+        bodyText(headlineUnlessEcho(P.supporting, [P.headline]), p, scene, { width: box.rail, height: box.height * 0.16 }, 520)
+      );
+    }
+
+    // The blue full-bleed CTA is the one saturated scene change in the film.
+    if (template === "cta_card") {
+      const sweep = revealAmount(p, scene, 0, 700);
+      const button = revealAmount(p, scene, 700, 600);
+      const onAccent = colors.onAccent;
+      const action = P.action
+        ? `<div style="opacity:${button.toFixed(4)};transform:translateY(${px((1 - button) * 2.4 * U)});display:inline-flex;align-items:center;gap:${px(1.4 * U)};padding:${px(2.2 * U)} ${px(4 * U)};border-radius:999px;background:${onAccent};font:600 ${px(3 * U)}/1 ${font};letter-spacing:-.01em;color:${colors.accentPress};">${esc(P.action)}<span>&#8594;</span></div>`
+        : "";
+      const destination = P.destination
+        ? `<div style="${revealStyle(p, scene, 900, 1.2)}font:600 ${px(MICRO_SIZE)}/1 ${font};letter-spacing:.12em;text-transform:uppercase;color:rgba(245,247,250,.78);">${esc(String(P.destination).toUpperCase())}</div>`
+        : "";
+      return `<div style="position:absolute;inset:0;background:${colors.accent};transform:scaleY(${sweep.toFixed(4)});transform-origin:50% 100%;"></div>` +
+        statementFrame(
+          microLabel(P.label || "", p, scene, 200, "rgba(245,247,250,.72)"),
+          headlineBlock(P.headline || scene.text, p, scene, { width: box.rail, height: box.height * 0.52 }, { max: 12.4, min: 5.4, maxLines: 4, delay: 300, color: onAccent }) +
+          bodyText(headlineUnlessEcho(P.supporting, [P.headline]), p, scene, { width: box.rail, height: box.height * 0.14 }, 600, "rgba(245,247,250,.86)") +
+          action + destination
+        );
+    }
+
+    // The number is the proof. It is revealed at its exact value and never
+    // animates through wrong figures on its way there.
+    if (template === "big_number") {
+      const value = String(P.number || "");
+      const reveal = revealAmount(p, scene, 120, 700);
+      const fitted = fitText(value, box.rail, box.height * 0.5, { max: 30, min: 10, weight: 600, tracking: -0.075, leading: 0.86, maxLines: 1 });
+      const underline = revealAmount(p, scene, 520, 900);
+      return statementFrame(microLabel(P.unit || "Measured", p, scene, 0),
+        `<div style="opacity:${reveal.toFixed(4)};transform:translateY(${px((1 - reveal) * 3 * U)});font:600 ${px(fitted.size)}/.86 ${font};letter-spacing:-.075em;color:${colors.text};font-variant-numeric:tabular-nums;">${esc(value)}</div>` +
+        `<div style="height:${px(.34 * U)};width:${pct(underline * 0.3)};background:${colors.accent};"></div>` +
+        bodyText(P.label, p, scene, { width: box.rail, height: box.height * 0.2 }, 620)
+      );
+    }
+
+    // ---- row family ---------------------------------------------------------
+    if (["list_stack", "steps", "timeline", "funnel", "condition_cards"].includes(template)) {
+      const ordered = template !== "list_stack";
+      let values = items;
+      if (template === "timeline" && arr(P.events).length) {
+        values = arr(P.events).map(event => (typeof event === "object" ? event.event : event));
+      }
+      if (template === "condition_cards" && P.left && P.right && !values.length) {
+        values = [P.left, P.right];
+      }
+      values = values.map(value => (typeof value === "object" ? (value.event || value.label || "") : String(value))).filter(Boolean);
+      const label = P.label || { list_stack: "Key points", steps: "Process", timeline: "Timeline", funnel: "Stages", condition_cards: "If / then" }[template];
+      const headline = headlineUnlessEcho(P.headline || scene.text, values);
+      const head = buildHead(scene, p, label, headline);
+      return structuredFrame(head, band => rowStack(values, p, scene, ordered, band));
+    }
+
+    // ---- pair family --------------------------------------------------------
+    if (["before_after", "comparison_split", "transformation_arrow", "cause_effect", "problem_solution"].includes(template)) {
+      const labels = {
+        before_after: ["Before", "After"],
+        comparison_split: ["A", "B"],
+        cause_effect: ["Cause", "Effect"],
+        problem_solution: ["Problem", "Response"],
+      }[template] || ["From", "To"];
+      const leftLabel = P.left_label || labels[0];
+      const rightLabel = P.right_label || labels[1];
+      // The panels already state the pair; a headline that says it again is cut.
+      const headline = headlineUnlessEcho(P.headline || scene.text, [
+        `${P.left} → ${P.right}`, `${P.left} ${P.right}`, P.left, P.right,
+      ]);
+      const head = buildHead(scene, p, P.label || "", headline, { max: 7.6, min: 4.2, maxLines: 2 });
+      const bridge = revealAmount(p, scene, 520, 700);
+
+      return structuredFrame(head, band => {
+        const pad = 3 * U;
+        const bridgeH = 5.4 * U;
+        const panelH = Math.min((band.height - bridgeH) / 2, band.hasHead ? 24 * U : 32 * U);
+        const fit = fitTogether([String(P.left || ""), String(P.right || "")], band.width - pad * 2, panelH - pad * 2 - 4 * U, {
+          max: 6.2, min: 3, weight: 600, tracking: -0.03, leading: 1.16, maxLines: 3,
+        });
+        // Cards hug their type. A card taller than its content is a hollow box,
+        // and the system has no hollow boxes in it.
+        const panel = (index, panelLabel, delayMs, hot) =>
+          `<div style="${revealStyle(p, scene, delayMs)}display:flex;flex-direction:column;justify-content:center;gap:${px(1.6 * U)};padding:${px(pad)};border-radius:${px(1.6 * U)};background:${hot ? colors.raised : colors.surface};border:1px solid ${hot ? colors.accent : colors.hairSoft};">
+            <div style="font:600 ${px(MICRO_SIZE)}/1 ${font};letter-spacing:.12em;text-transform:uppercase;color:${hot ? colors.accent : colors.muted};">${esc(String(panelLabel).toUpperCase())}</div>
+            <div style="font:600 ${px(fit.size)}/${fit.leading} ${font};letter-spacing:-.03em;color:${colors.text};">${esc(fit.wrapped[index].join(" "))}</div>
+          </div>`;
+        const arrow = `<div style="height:${px(bridgeH)};display:flex;align-items:center;gap:${px(1.6 * U)};">
+          <div style="height:${px(.34 * U)};width:${px(band.width * 0.24 * bridge)};background:${colors.accent};"></div>
+          <div style="opacity:${bridge.toFixed(4)};font:600 ${px(3.8 * U)}/1 ${font};color:${colors.accent};">&#8594;</div></div>`;
+        const seat = band.hasHead ? "bottom:0;" : "top:0;bottom:0;justify-content:center;";
+        return `<div style="position:absolute;left:0;right:0;${seat}display:flex;flex-direction:column;">
+          ${panel(0, leftLabel, 260, false)}${arrow}${panel(1, rightLabel, 640, true)}</div>`;
       });
-      body=`<svg style="position:absolute;inset:0;" width="${W}" height="${H}">${lines}</svg><div style="position:absolute;left:${px(cx-6.5*U)};top:${px(cy-6.5*U)};width:${px(13*U)};height:${px(13*U)};border-radius:50%;background:${colors.raised};border:${px(.3*U)} solid ${colors.accent};display:grid;place-items:center;text-align:center;padding:${px(U)};opacity:${centerQ};transform:scale(${.75+.25*centerQ});font:600 ${px(2.7*U)}/1.12 ${font};color:${colors.text};">${esc(studioTrim(P.center||P.parent,3))}</div>${labels}<div style="position:absolute;left:${px(edge)};top:${px(H*.1)};width:${px(landscape?W*.38:W*.85)};display:flex;flex-direction:column;gap:${px(1.8*U)};">${micro(P.label||"System",.02)}${kinetic(P.headline,.06,6,landscape?W*.38:W*.8)}</div>`;
-    } else if (scene.template==="question_card") {
-      const q=studioPhase(.05,.4,easeBack), pulse=1+.04*Math.sin(t*2.2);
-      body=`<div style="position:absolute;left:50%;top:${px(H*.36)};transform:translate(-50%,-50%) scale(${q*pulse});width:${px(16*U)};height:${px(16*U)};border-radius:50%;border:${px(.35*U)} solid ${colors.accent};display:grid;place-items:center;font:600 ${px(9*U)}/1 ${font};color:${colors.accent};">?</div><div style="position:absolute;left:${px(edge)};right:${px(edge)};top:${px(H*.52)};display:flex;justify-content:center;">${kinetic(P.headline||scene.text,.25,landscape?6.4:5.2,W*.78)}</div>`;
-    } else if (scene.template==="cta_card") {
-      const buttonQ=studioPhase(.45,.72,easeBack), sweep=studioPhase(.02,.5,easeInOut);
-      body=`<div style="position:absolute;inset:0;background:${colors.accent};transform:scaleY(${sweep});transform-origin:bottom;opacity:.96;"></div><div style="position:absolute;left:${px(edge)};right:${px(edge)};top:0;bottom:0;display:flex;flex-direction:column;justify-content:center;gap:${px(3*U)};opacity:${sweep};">${kinetic(P.headline,.3,landscape?8.4:6.6,W*.85,"#FFFFFF")}<div style="display:flex;align-items:center;gap:${px(3*U)};margin-top:${px(2*U)};"><div style="opacity:${buttonQ};transform:scale(${.88+.12*buttonQ});padding:${px(2.2*U)} ${px(4.2*U)};border-radius:999px;background:#FFFFFF;font:600 ${px(2.7*U)}/1 ${font};color:#0A0F1E;">${esc(P.action||"Learn more")} →</div>${P.destination?`<div style="opacity:${studioPhase(.62,.82)};font:600 ${px(2.4*U)}/1 ${font};letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.8);">${esc(P.destination)}</div>`:""}</div></div>`;
-    } else if (scene.template==="definition_card") {
-      body=`<div style="position:absolute;left:${px(edge)};right:${px(edge)};top:0;bottom:0;display:flex;flex-direction:column;justify-content:center;gap:${px(3*U)};">${micro(P.label||"Definition",.02)}${kinetic(P.term||P.headline,.07,7.4,W*.8)}<div style="height:${px(.3*U)};width:${studioPhase(.3,.58,easeInOut)*44}%;background:${colors.accent};"></div><div style="opacity:${studioPhase(.42,.7)};font:400 ${px(3.2*U)}/1.42 ${font};color:${colors.body};max-width:${px(W*.7)};">${esc(studioTrim(P.definition||P.supporting,20))}</div></div>`;
-    } else if (scene.template==="warning_card") {
-      const q=studioPhase(.05,.35,easeBack), blink=.6+.4*Math.abs(Math.sin(t*2));
-      body=`<div style="position:absolute;left:50%;top:${px(H*.32)};transform:translate(-50%,-50%) scale(${q});width:${px(11*U)};height:${px(11*U)};border-radius:50%;border:${px(.35*U)} solid ${colors.danger};display:grid;place-items:center;font:600 ${px(6*U)}/1 ${font};color:${colors.danger};opacity:${blink};">!</div><div style="position:absolute;left:${px(edge)};right:${px(edge)};top:${px(H*.46)};display:flex;flex-direction:column;align-items:center;gap:${px(2*U)};text-align:center;">${micro(P.label||"Important",.1)}<div style="display:flex;justify-content:center;">${kinetic(P.headline,.2,5.4,W*.78)}</div></div>`;
-    } else {
-      const quote=scene.template==="quote_focus";
-      body=`<div style="position:absolute;left:${px(edge)};right:${px(edge)};top:0;bottom:0;display:flex;flex-direction:column;justify-content:center;gap:${px(2.6*U)};">${quote?`<div style="opacity:${studioPhase(.02,.22)};font:600 ${px(10*U)}/.5 ${font};color:${colors.accent};">“</div>`:micro(P.label||"",.02)}${kinetic(P.headline||scene.text,.1,landscape?8.6:7,W*.84)}</div>`;
     }
 
-    const showDots=["title_card","quote_focus","question_card","big_number","warning_card"].includes(scene.template);
-    return `<div style="position:absolute;inset:0;background:${colors.canvas};overflow:hidden;font-family:${font};"><div style="position:absolute;inset:-2%;transform:scale(${1+.016*easeInOut(p)});transform-origin:50% 44%;"><div style="position:absolute;inset:0;background:radial-gradient(circle at 86% 15%,rgba(63,110,233,.14),transparent 32%);"></div>${showDots?dotField():""}${body}</div></div>`;
+    // ---- figure family ------------------------------------------------------
+    if (["network", "cycle", "hierarchy_tree"].includes(template)) {
+      const nodes = items
+        .map(node => (typeof node === "object" ? (node.event || node.label || "") : String(node)))
+        .filter(Boolean).slice(0, 6);
+      const centre = String(P.center || P.parent || "");
+      if (centre) {
+        for (let index = nodes.length - 1; index >= 0; index--) {
+          if (echoes(nodes[index], centre)) nodes.splice(index, 1);
+        }
+      }
+      const headline = headlineUnlessEcho(P.headline || scene.text, nodes.concat([centre]));
+      const head = buildHead(scene, p, P.label || (template === "cycle" ? "Feedback loop" : "System"), headline, { max: 7.6, min: 4.2, maxLines: 2 });
+      const hub = revealAmount(p, scene, 120, 600);
+      const spokes = revealAmount(p, scene, 320, 900);
+
+      return structuredFrame(head, band => {
+        // In 9:16 a ring is the wrong figure: four long labels on a circle
+        // inscribed in the width leave the bottom of the band empty and collide
+        // with the headline. Portrait gets a hub and a rail — the same claim
+        // ("these all hang off that") in a shape the frame can actually hold.
+        if (!landscape) {
+          const railX = 3.2 * U;
+          const hubW = band.width;
+          const hubFit = fitText(centre, hubW - 6 * U, 11 * U, { max: 4.2, min: 2.4, weight: 600, tracking: -0.03, leading: 1.14, maxLines: 3 });
+          const hubH = hubFit.height + 6 * U;
+          const hubPlate = centre
+            ? `<div style="position:absolute;left:0;top:0;width:${px(hubW)};padding:${px(3 * U)};border-radius:${px(1.6 * U)};background:${colors.raised};border:1px solid ${colors.accent};opacity:${hub.toFixed(4)};transform:translateY(${px((1 - hub) * 2.4 * U)});font:600 ${px(hubFit.size)}/1.14 ${font};letter-spacing:-.03em;color:${colors.text};">${esc(hubFit.lines.join(" "))}</div>`
+            : "";
+          const listTop = centre ? hubH + 4 * U : 0;
+          const listH = Math.max(8 * U, band.height - listTop);
+          const textLeft = railX + 5 * U;
+          const fit = fitTogether(nodes, band.width - textLeft, listH / Math.max(1, nodes.length) - 2.4 * U, {
+            max: 4, min: 2.4, weight: 600, tracking: -0.03, leading: 1.18, maxLines: 2,
+          });
+          const step = listH / Math.max(1, nodes.length);
+          // The rail is drawn to the last node it actually carries, not to an
+          // arbitrary fraction of the band.
+          const railSpan = step * Math.max(0.5, nodes.length - 0.5);
+          const rail = `<div style="position:absolute;left:${px(railX)};top:${px(listTop)};width:${px(.3 * U)};height:${px(railSpan * spokes)};background:${colors.hair};"></div>`;
+          const rows = nodes.map((node, index) => {
+            const q = revealAmount(p, scene, 480 + index * 90, 600);
+            const y = listTop + step * (index + 0.5);
+            return `<div style="position:absolute;left:${px(railX)};top:${px(y)};width:${px(3.6 * U)};height:${px(.3 * U)};background:${colors.accent};opacity:${q.toFixed(3)};"></div>
+              <div style="position:absolute;left:${px(railX - .9 * U)};top:${px(y - .9 * U)};width:${px(1.8 * U)};height:${px(1.8 * U)};border-radius:50%;background:${colors.accent};opacity:${q.toFixed(3)};"></div>
+              <div style="position:absolute;left:${px(textLeft)};width:${px(band.width - textLeft)};top:${px(y)};transform:translateY(-50%);opacity:${q.toFixed(4)};font:600 ${px(fit.size)}/${fit.leading} ${font};letter-spacing:-.03em;color:${colors.text};">${esc(fit.wrapped[index].join(" "))}</div>`;
+          }).join("");
+          const loop = template === "cycle"
+            ? `<div style="position:absolute;left:${px(railX)};top:${px(listTop)};opacity:${spokes.toFixed(3)};transform:translate(-50%,-120%);font:600 ${px(3.2 * U)}/1 ${font};color:${colors.accent};">&#8593;</div>`
+            : "";
+          return `${hubPlate}${rail}${rows}${loop}`;
+        }
+
+        const cx = band.width * 0.5;
+        const cy = band.height * 0.5;
+        const plateW = Math.min(band.width * 0.42, 26 * U);
+        const rx = Math.max(0, band.width * 0.5 - plateW * 0.5);
+        const ry = Math.max(0, band.height * 0.5 - 9 * U);
+        // One shared size across every node, so the ring reads as one figure.
+        const fit = fitTogether(nodes, plateW - 2 * U, 9 * U, { max: 3.6, min: 2.2, weight: 600, tracking: -0.02, leading: 1.18, maxLines: 3 });
+        let lines = "";
+        let plates = "";
+        nodes.forEach((node, index) => {
+          const angle = -Math.PI / 2 + Math.PI * 2 * index / Math.max(1, nodes.length);
+          const x = cx + Math.cos(angle) * rx;
+          const y = cy + Math.sin(angle) * ry;
+          const q = revealAmount(p, scene, 480 + index * 90, 600);
+          if (template === "cycle" && nodes.length > 1) {
+            const next = -Math.PI / 2 + Math.PI * 2 * ((index + 1) % nodes.length) / nodes.length;
+            lines += `<line x1="${x}" y1="${y}" x2="${cx + Math.cos(next) * rx}" y2="${cy + Math.sin(next) * ry}" stroke="${colors.accent}" stroke-width="${.24 * U}" opacity="${(spokes * .8).toFixed(3)}"/>`;
+          } else {
+            lines += `<line x1="${cx}" y1="${cy}" x2="${cx + (x - cx) * spokes}" y2="${cy + (y - cy) * spokes}" stroke="${colors.hair}" stroke-width="${.24 * U}"/>`;
+          }
+          const above = Math.sin(angle) < -0.2;
+          plates += `<div style="position:absolute;left:${px(x)};top:${px(y)};transform:translate(-50%,${above ? "-100%" : "0"});opacity:${q.toFixed(4)};display:flex;flex-direction:column;align-items:center;">
+              ${above ? "" : `<div style="width:${px(1.8 * U)};height:${px(1.8 * U)};border-radius:50%;background:${colors.accent};margin-bottom:${px(1.2 * U)};"></div>`}
+              <div style="width:${px(plateW)};text-align:center;font:600 ${px(fit.size)}/${fit.leading} ${font};letter-spacing:-.02em;color:${colors.body};">${esc(fit.wrapped[index].join(" "))}</div>
+              ${above ? `<div style="width:${px(1.8 * U)};height:${px(1.8 * U)};border-radius:50%;background:${colors.accent};margin-top:${px(1.2 * U)};"></div>` : ""}
+            </div>`;
+        });
+        const hubW = Math.min(band.width * 0.44, 28 * U);
+        const hubFit = fitText(centre, hubW - 3 * U, 10 * U, { max: 3.8, min: 2.2, weight: 600, tracking: -0.02, leading: 1.14, maxLines: 3 });
+        const hubPlate = centre
+          ? `<div style="position:absolute;left:${px(cx)};top:${px(cy)};transform:translate(-50%,-50%);opacity:${hub.toFixed(4)};width:${px(hubW)};padding:${px(2.2 * U)};border-radius:${px(2.4 * U)};background:${colors.raised};border:1px solid ${colors.accent};text-align:center;font:600 ${px(hubFit.size)}/1.14 ${font};letter-spacing:-.02em;color:${colors.text};">${esc(hubFit.lines.join(" "))}</div>`
+          : "";
+        return `<svg style="position:absolute;inset:0;" width="${band.width}" height="${band.height}">${lines}</svg>${hubPlate}${plates}`;
+      });
+    }
+
+    if (template === "bar_chart") {
+      const series = arr(P.series).slice(0, 8);
+      const max = Math.max(1, ...series.map(item => Number(item.value) || 0));
+      const head = buildHead(scene, p, P.unit || "Data", P.headline || scene.text, { max: 7.6, min: 4.2, maxLines: 2 });
+      return structuredFrame(head, band => {
+        const labelW = band.width * 0.3;
+        const rows = series.map((item, index) => {
+          const q = revealAmount(p, scene, 260 + index * 90, 700);
+          const share = (Number(item.value) || 0) / max;
+          return `<div style="flex:1 1 0;min-height:0;display:flex;align-items:center;gap:${px(2 * U)};border-top:1px solid ${index === 0 ? "transparent" : colors.hairSoft};">
+            <div style="flex:0 0 ${px(labelW)};font:600 ${px(2.6 * U)}/1.2 ${font};letter-spacing:.06em;text-transform:uppercase;color:${colors.muted};opacity:${q.toFixed(3)};">${esc(String(item.label || "").toUpperCase())}</div>
+            <div style="flex:1 1 auto;display:flex;align-items:center;gap:${px(1.6 * U)};">
+              <div style="height:${px(2.6 * U)};width:${pct(share * q * 0.82)};border-radius:${px(.4 * U)};background:${index === 0 ? colors.accent : colors.surface2};border:1px solid ${index === 0 ? colors.accent : colors.hair};"></div>
+              <div style="font:600 ${px(3.2 * U)}/1 ${font};letter-spacing:-.02em;color:${colors.text};opacity:${q.toFixed(3)};font-variant-numeric:tabular-nums;">${esc(item.value)}${esc(item.unit || "")}</div>
+            </div></div>`;
+        }).join("");
+        return `<div style="position:absolute;inset:0;display:flex;flex-direction:column;">${rows}</div>`;
+      });
+    }
+
+    if (template === "audio_wave") {
+      const bars = arr(P.energy_bars).slice(0, 64);
+      const count = Math.max(1, bars.length);
+      const head = buildHead(scene, p, P.label || "Audio structure", P.headline || scene.text, { max: 7.6, min: 4.2, maxLines: 2 });
+      return structuredFrame(head, band => {
+        const gap = band.width / count * 0.3;
+        const barW = (band.width - gap * (count - 1)) / count;
+        const html = bars.map((value, index) => {
+          const q = revealAmount(p, scene, 200 + index * 12, 600);
+          const height = clamp(Number(value)) * q;
+          return `<div style="flex:0 0 ${px(barW)};height:${pct(Math.max(0.02, height))};align-self:center;border-radius:999px;background:${colors.accent};opacity:${(0.4 + 0.6 * q).toFixed(3)};"></div>`;
+        }).join("");
+        return `<div style="position:absolute;inset:0;display:flex;align-items:center;gap:${px(gap)};">${html}</div>`;
+      });
+    }
+
+    // ---- fallback: treat anything unmapped as a statement --------------------
+    return statementFrame(microLabel(P.label || "", p, scene, 0),
+      headlineBlock(P.headline || scene.text, p, scene, { width: box.rail, height: box.height * 0.66 }, { max: 12.4, min: 5.2, maxLines: 5 })
+    );
   }

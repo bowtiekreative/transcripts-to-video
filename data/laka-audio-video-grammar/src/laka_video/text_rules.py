@@ -24,13 +24,20 @@ _CONNECTOR_TRIM = re.compile(
 )
 
 
+_DOMAIN_TOKEN_RE = re.compile(r"^[a-z0-9][a-z0-9-]*\.[a-z]{2,}$")
+
+
 def _clean_fragment(text: str) -> str:
     value = normalize_whitespace(text)
     value = _CONNECTOR_TRIM.sub("", value)
     value = value.strip(" ,;:.—–-")
-    if value:
-        value = value[0].upper() + value[1:]
-    return value
+    if not value:
+        return value
+    # A domain keeps its own casing: "ryanperez.ca", never "Ryanperez.ca".
+    head = value.split(" ", 1)[0].strip(".,;:")
+    if _DOMAIN_TOKEN_RE.match(head):
+        return value
+    return value[0].upper() + value[1:]
 
 
 def _list_value(value: Any) -> list[str]:
@@ -212,6 +219,75 @@ def _extract_definition(text: str) -> tuple[str | None, str | None]:
     return None, None
 
 
+# A headline that stops on a function word ("look at who", "dot c a is where")
+# reads as a sentence someone cut in half, because it is one. Headlines are
+# trimmed back to the last word that can actually end a phrase.
+_TRAILING_FUNCTION_WORDS = {
+    "a", "an", "the", "and", "or", "but", "so", "if", "of", "to", "in", "on", "at", "for",
+    "from", "with", "by", "as", "that", "which", "who", "whom", "whose", "what", "when",
+    "where", "how", "is", "are", "was", "were", "be", "been", "being", "am", "it", "its",
+    "my", "your", "our", "their", "his", "her", "this", "these", "those", "into", "about",
+    "through", "over", "under", "than", "then", "because", "while", "after", "before",
+    "can", "could", "will", "would", "should", "may", "might", "must", "not", "no", "do",
+    "does", "did", "i", "we", "you", "they", "he", "she", "up", "out", "also", "just",
+    "very", "more", "most", "some", "any", "every", "both", "each",
+}
+
+# Places a sentence can honestly be cut short of its end.
+_CLAUSE_BREAK_RE = re.compile(
+    r"\s*(?:[,;:—–]|\s+(?:and|but|so|because|while|which|that|when|where|instead|rather)\b)",
+    flags=re.IGNORECASE,
+)
+
+_HEADLINE_MAX_WORDS = 9
+_HEADLINE_MIN_WORDS = 3
+
+
+def _trim_trailing_function_words(text: str) -> str:
+    tokens = normalize_whitespace(text).split()
+    while tokens:
+        last = re.sub(r"[^\w'’-]", "", tokens[-1].lower())
+        if last in _TRAILING_FUNCTION_WORDS:
+            tokens.pop()
+        else:
+            break
+    return " ".join(tokens).rstrip(" ,;:—–-")
+
+
+def _headline_span(text: str, stopwords: set[str]) -> str:
+    """Pick a headline that is a phrase, not an arbitrary N-word slice."""
+    source = normalize_whitespace(text)
+    if not source:
+        return ""
+    if word_count(source) <= _HEADLINE_MAX_WORDS:
+        return _clean_fragment(source)
+
+    # The sentence keeps its subject. Skipping leading stopwords to "save" a word
+    # produced headlines like "Might know me through Bow Tie Kreative" and
+    # "Place can look welcoming" — grammatical damage for no gain. Discourse
+    # filler is already removed by _CONNECTOR_TRIM before we get here.
+    remainder = source
+
+    # Prefer cutting at a real clause boundary inside the window.
+    best = ""
+    for match in _CLAUSE_BREAK_RE.finditer(remainder):
+        candidate = remainder[: match.start()].strip()
+        count = word_count(candidate)
+        if count < _HEADLINE_MIN_WORDS:
+            continue
+        if count > _HEADLINE_MAX_WORDS:
+            break
+        best = candidate
+    if best:
+        return _clean_fragment(_trim_trailing_function_words(best) or best)
+
+    window = " ".join(remainder.split()[:_HEADLINE_MAX_WORDS])
+    trimmed = _trim_trailing_function_words(window)
+    if word_count(trimmed) < _HEADLINE_MIN_WORDS:
+        trimmed = window
+    return _clean_fragment(trimmed)
+
+
 def _headline(text: str, stopwords: set[str], relation: str, payload: dict[str, Any]) -> str:
     if relation in {"transformation", "contrast", "comparison", "cause_effect", "problem_solution"}:
         left, right = payload.get("left"), payload.get("right")
@@ -229,25 +305,19 @@ def _headline(text: str, stopwords: set[str], relation: str, payload: dict[str, 
     if relation in {"list", "sequence", "hierarchy", "network", "cycle"} and ":" in text:
         lead = _clean_fragment(text.split(":", 1)[0])
         if lead:
-            return " ".join(lead.split()[:7])
+            return _headline_span(lead, stopwords)
     if relation == "cta":
-        lead = _clean_fragment(re.split(r"[,;:—–]", text, maxsplit=1)[0])
+        # Take the first sentence, then its first clause — never a span that
+        # runs across a full stop.
+        parts = _sentence_parts(text)
+        sentence = parts[0] if parts else text
+        lead = _clean_fragment(re.split(r"[,;:—–]", sentence, maxsplit=1)[0])
         if lead:
-            return " ".join(lead.split()[:7])
+            return _headline_span(lead, stopwords)
 
     first = _sentence_parts(text)[0] if _sentence_parts(text) else _clean_fragment(text)
     first = _CONNECTOR_TRIM.sub("", first).strip()
-    if word_count(first) <= 7:
-        return first
-    tokens = first.split()
-    # Start at the first content-bearing token, then retain an exact source span.
-    start = 0
-    for i, token in enumerate(tokens[:5]):
-        normalized = re.sub(r"[^\w'-]", "", token.lower())
-        if normalized and normalized not in stopwords:
-            start = i
-            break
-    return _clean_fragment(" ".join(tokens[start:start + 7]).rstrip(" ,;:"))
+    return _headline_span(first, stopwords)
 
 
 class TextRuleEngine:
@@ -398,8 +468,11 @@ class TextRuleEngine:
 
         if relation == "network":
             items = _extract_items(text)
-            candidates = [w for w in words(text) if w.lower() not in self.stopwords and len(w) > 3]
-            center = _clean_fragment(" ".join(candidates[:3])) if candidates else _clean_fragment(text)
+            # The hub is a phrase from the source, not the first three long words
+            # glued together — that produced centres like "It's framework living".
+            first_clause = _sentence_parts(text)[0] if _sentence_parts(text) else text
+            center = _clean_fragment(re.split(r"[:—–]", first_clause, maxsplit=1)[0])
+            center = _headline_span(center, self.stopwords) if center else ""
             if len(items) >= 2:
                 payload.update({"center": center, "nodes": items})
 

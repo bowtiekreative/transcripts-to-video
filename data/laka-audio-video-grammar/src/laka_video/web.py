@@ -11,7 +11,10 @@ from pathlib import Path
 from typing import Any, Iterable
 
 import yaml
-from flask import Flask, abort, jsonify, redirect, render_template, request, send_file, url_for
+from flask import (
+    Flask, abort, jsonify, redirect, render_template, request, send_file,
+    send_from_directory, url_for,
+)
 from werkzeug.datastructures import FileStorage
 from werkzeug.exceptions import RequestEntityTooLarge
 
@@ -19,6 +22,7 @@ from .compiler import compile_project
 from .render_mp4 import render_mp4
 from .scaffold import init_project
 from .studio import allowed_review_choices, build_studio_review, load_studio_library
+from .utils import default_font_dir
 
 
 NARRATION_EXTENSIONS = {
@@ -414,6 +418,13 @@ def create_app(
     asset_dir = Path(__file__).resolve().parent / "data" / "web"
     app = Flask(__name__, template_folder=str(asset_dir), static_folder=str(asset_dir), static_url_path="/assets")
     app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 * 1024 * 1024
+
+    # Inter is served from the package, not from a CDN: the compiler is meant to
+    # run offline, and the console should not fall back to a system face when it
+    # does.
+    @app.route("/fonts/<path:filename>")
+    def brand_font(filename: str):
+        return send_from_directory(default_font_dir(), filename, max_age=31536000)
     configured_root = os.environ.get("LAVC_JOB_ROOT")
     resolved_root = Path(job_root) if job_root else Path(configured_root) if configured_root else Path.cwd() / ".laka" / "jobs"
     job_manager = manager or JobManager(resolved_root)

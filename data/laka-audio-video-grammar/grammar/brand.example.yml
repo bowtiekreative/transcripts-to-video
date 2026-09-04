@@ -1,5 +1,8 @@
-version: 1.0.0
+version: 1.1.0
 name: LAVC Dark Default
+# Values are the Ryan Perez / LAKA design tokens verbatim. Nothing here is a
+# near-miss: colours come from tokens/colors.css and tokens/semantic.css, the
+# radius scale from tokens/spacing.css, and the type from tokens/typography.css.
 colors:
   canvas: '#07090D'
   surface: '#1A1D24'
@@ -8,19 +11,31 @@ colors:
   body: '#C5C7CE'
   muted: '#8A8D96'
   accent: '#3F6EE9'
-  accent_2: '#8AA4FF'
-  danger: '#D64A4A'
-  hair: rgba(255,255,255,0.15)
-  hair_soft: rgba(255,255,255,0.08)
+  accent_hover: '#5B84EE'
+  accent_press: '#3259C4'
+  on_accent: '#F5F7FA'
+  good: '#3FA46A'
+  warn: '#C98A2E'
+  danger: '#D8574F'
+  hair: rgba(245,247,250,0.15)
+  hair_soft: rgba(245,247,250,0.08)
+  # Retained so older projects keep compiling; it now points at accent_hover.
+  accent_2: '#5B84EE'
 type:
-  family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif
+  # Inter is shipped with the compiler and embedded in every preview, so the
+  # render box does not need it installed. Two weights only, by design.
+  family: "'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif"
   weight_head: 600
   weight_body: 400
-  letter_spacing_head: -0.035em
+  letter_spacing_head: -0.05em
 shape:
-  radius_small: 10
-  radius_medium: 20
-  radius_large: 34
+  radius_chip: 8
+  radius_small: 8
+  radius_card: 16
+  radius_medium: 16
+  radius_panel: 24
+  radius_large: 24
+  radius_media: 32
   line_width: 3
 spacing:
   edge_ratio: 0.075

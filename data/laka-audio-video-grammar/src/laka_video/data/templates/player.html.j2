@@ -5,10 +5,11 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1" />
 <title>{{ title }}</title>
 <style>
+{{ font_face_css }}
   :root { color-scheme: dark; }
   * { box-sizing: border-box; }
   html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #07090D; }
-  body { font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  body { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif; }
   #viewport { position: fixed; inset: 0; display: grid; place-items: center; overflow: hidden; }
   #stage-shell { position: relative; transform-origin: 50% 50%; }
   #stage { position: absolute; left: 0; top: 0; overflow: hidden; isolation: isolate; }
@@ -70,13 +71,26 @@
   const edge = W * Number(SP.edge_ratio || 0.075);
   const captionBottom = H * .045;
   const captionHeight = H * .10;
+  const captionReserve = captionHeight + captionBottom;
   const landscape = W >= H;
   const colors = {
     canvas: BC.canvas || "#07090D", surface: BC.surface || "#1A1D24", raised: BC.raised || "#23262F",
+    surface2: BC.raised || "#23262F",
     text: BC.text || "#F5F7FA", body: BC.body || "#C5C7CE", muted: BC.muted || "#8A8D96",
-    accent: BC.accent || "#3F6EE9", accent2: BC.accent_2 || "#8AA4FF", danger: BC.danger || "#D64A4A",
-    hair: BC.hair || "rgba(255,255,255,.15)", hairSoft: BC.hair_soft || "rgba(255,255,255,.08)"
+    accent: BC.accent || "#3F6EE9",
+    accentHover: BC.accent_hover || BC.accent_2 || "#5B84EE",
+    accentPress: BC.accent_press || "#3259C4",
+    onAccent: BC.on_accent || "#F5F7FA",
+    accent2: BC.accent_2 || BC.accent_hover || "#5B84EE",
+    danger: BC.danger || "#D8574F", good: BC.good || "#3FA46A", warn: BC.warn || "#C98A2E",
+    hair: BC.hair || "rgba(245,247,250,.15)", hairSoft: BC.hair_soft || "rgba(245,247,250,.08)"
   };
+  // Depth from light, not shadows: a white radial backlight bleeding from the
+  // left edge. The blue corner wash an earlier build used is out of system.
+  const BACKLIGHT = "radial-gradient(ellipse 70% 88% at 0% 36%,rgba(245,247,250,.07),transparent 72%)";
+  // --grain-url from tokens/textures.css, used at 6% over the whole frame.
+  const GRAIN = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E\")";
+
   // Inline style attributes are double quoted. Normalize any quoted fallback
   // family to single quotes so the attribute cannot be truncated by the font.
   const font = String(BT.family || "Inter, system-ui, sans-serif").replaceAll('"', "'");
@@ -139,8 +153,11 @@
 
   function normalized(scene, t) { return clamp((t-scene.start)/Math.max(.001,scene.end-scene.start)); }
   function motionTravel(scene) { return Number(scene.motion?.parameters?.travel_px || 20) * (W/1080); }
+  // The dolly: a scale about the frame centre, so the W x H design space stays
+  // one-to-one with scene coordinates. Insetting the drift layer (as an earlier
+  // build did) shifted every composition off its own left rail.
   function camera(scene,p) {
-    if (!scene.motion?.parameters?.camera_drift) return "";
+    if (!scene.motion?.parameters?.camera_drift) return "transform:none;";
     const e = Number(scene.motion?.parameters?.energy || .5);
     const scale = 1 + (.008 + .012*e) * p;
     return `transform:scale(${scale});transform-origin:50% 44%;`;
@@ -411,12 +428,24 @@
 
 {{ studio_renderer_js | safe }}
 
-  function captionAt(t,onBlue=false) {
+  const capNorm = value => String(value ?? "").toLowerCase().replace(/[^a-z0-9]+/g," ").trim();
+
+  function captionAt(t,onBlue=false,scene=null) {
     if (!STORY.captions || C.captions === "none") return "";
     const cap=STORY.captions.find(c=>t>=c.t0-.08 && t<c.t1+.08);
     if (!cap) return "";
-    const color=onBlue ? "rgba(255,255,255,.84)" : colors.body;
-    return `<div style="position:absolute;z-index:20;left:${px(edge)};right:${px(landscape?W*.18:edge)};bottom:${px(captionBottom)};min-height:${px(captionHeight)};display:flex;align-items:center;justify-content:flex-start;text-align:left;font:400 ${px(3.3*U)}/1.4 ${font};letter-spacing:-.012em;color:${color};">${esc(cap.text)}</div>`;
+    // A caption that repeats the headline already on screen is noise. Captions
+    // exist to carry what the frame does not say.
+    const headline=capNorm(scene?.payload?.headline);
+    const spoken=capNorm(cap.text);
+    if (headline && spoken && headline.includes(spoken)) return "";
+    // Type over the frame is protected by a gradient flood, never a solid capsule.
+    const flood=onBlue
+      ? "linear-gradient(180deg,transparent 0%,rgba(50,89,196,.55) 55%,rgba(50,89,196,.9) 100%)"
+      : "linear-gradient(180deg,transparent 0%,rgba(7,9,13,.55) 55%,rgba(7,9,13,.92) 100%)";
+    const color=onBlue ? "#F5F7FA" : colors.text;
+    return `<div style="position:absolute;z-index:20;left:0;right:0;bottom:0;height:${px(captionReserve + 2.4*U)};background:${flood};pointer-events:none;"></div>
+      <div style="position:absolute;z-index:21;left:${px(edge)};right:${px(landscape?W*.18:edge)};bottom:${px(captionBottom)};min-height:${px(captionHeight)};display:flex;align-items:center;justify-content:flex-start;text-align:left;font:400 ${px(4*U)}/1.32 ${font};letter-spacing:-.012em;color:${color};">${esc(cap.text)}</div>`;
   }
 
   function renderTemplate(scene,p,t) {
@@ -453,12 +482,15 @@
     const drift=camera(scene,p);
     stage.style.background=colors.canvas;
     stage.style.color=colors.text;
+    // One frame owner. Canvas, backlight, grain, dolly and caption band live
+    // here; scene renderers return content only, in raw W x H coordinates.
     stage.innerHTML=`<div style="position:absolute;inset:0;background:${colors.canvas};overflow:hidden;">
-      <div style="position:absolute;inset:-3%;${drift}">
-        <div style="position:absolute;inset:0;background:radial-gradient(ellipse 68% 86% at 0% 34%,rgba(255,255,255,.065),transparent 72%);"></div>
+      <div style="position:absolute;inset:0;${drift}">
+        <div style="position:absolute;inset:0;background:${BACKLIGHT};"></div>
         ${renderStudioTemplate(scene,p,t)}
       </div>
-      ${captionAt(t,onBlue)}
+      <div style="position:absolute;inset:0;opacity:.06;mix-blend-mode:overlay;pointer-events:none;background-image:${GRAIN};background-size:${px(16*U)} ${px(16*U)};"></div>
+      ${captionAt(t,onBlue,scene)}
     </div>`;
     if (DEBUG) {
       debug.style.display="block";
@@ -525,7 +557,10 @@
     if (e.code==="ArrowLeft") { voice.currentTime=Math.max(0,(voice.currentTime||0)-5); renderAt(voice.currentTime); }
   });
   renderAt(0);
-  window.LAKA_READY=true;
+  const fontsReady = document.fonts && document.fonts.ready
+    ? document.fonts.load("600 100px 'Inter'").then(()=>document.fonts.load("400 100px 'Inter'")).then(()=>document.fonts.ready)
+    : Promise.resolve();
+  fontsReady.catch(()=>{}).then(()=>{ renderAt(voice.currentTime||0); window.LAKA_READY=true; });
 })();
 </script>
 </body>

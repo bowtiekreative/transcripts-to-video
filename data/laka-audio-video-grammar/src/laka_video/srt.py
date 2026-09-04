@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from .models import Cue
-from .utils import normalize_whitespace, parse_scalar
+from .utils import normalize_spoken_domains, normalize_whitespace, parse_scalar
 
 _TAG_RE = re.compile(r"\[\[\s*LAKA\s+(.+?)\]\]", flags=re.IGNORECASE | re.DOTALL)
 _TIME_RE = re.compile(
@@ -41,7 +41,9 @@ def extract_laka_tags(text: str) -> tuple[str, dict[str, Any]]:
     for match in _TAG_RE.finditer(text or ""):
         tags.update(parse_tag_body(match.group(1)))
     clean = _TAG_RE.sub(" ", text or "")
-    return normalize_whitespace(clean), tags
+    # Spoken addresses become written ones once, at ingest, so captions, scene
+    # text and every extracted payload all agree on the same string.
+    return normalize_spoken_domains(normalize_whitespace(clean)), tags
 
 
 def parse_srt(path: str | Path) -> list[Cue]:
