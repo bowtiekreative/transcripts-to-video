@@ -92,12 +92,14 @@ def test_brand_preset_uses_only_the_two_shipped_weights():
 
 
 def test_source_and_packaged_grammar_agree():
-    for path in sorted(GRAMMAR_SOURCE.iterdir()):
+    """Walks subdirectories: grammar/lexicon/ is a whole tree that can drift."""
+    for path in sorted(GRAMMAR_SOURCE.rglob("*")):
         if not path.is_file():
             continue
-        mirrored = GRAMMAR_PACKAGED / path.name
-        assert mirrored.is_file(), f"{path.name} is missing from the packaged grammar"
-        assert mirrored.read_bytes() == path.read_bytes(), f"{path.name} differs between grammar/ and the package"
+        relative = path.relative_to(GRAMMAR_SOURCE)
+        mirrored = GRAMMAR_PACKAGED / relative
+        assert mirrored.is_file(), f"{relative} is missing from the packaged grammar"
+        assert mirrored.read_bytes() == path.read_bytes(), f"{relative} differs between grammar/ and the package"
 
 
 # ----------------------------------------------------------------- motion ---

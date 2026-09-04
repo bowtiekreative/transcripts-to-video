@@ -34,6 +34,8 @@ where = ["src"]
 [tool.setuptools.package-data]
 laka_video = [
   "data/grammar/*.yml",
+  "data/grammar/lexicon/*.yml",
+  "data/grammar/lexicon/*.txt",
   "data/grammar/*.json",
   "data/grammar/*.ebnf",
   "data/templates/*.j2",

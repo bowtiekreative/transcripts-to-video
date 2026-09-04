@@ -1,0 +1,69 @@
+version: 1.0.0
+name: LAVC Aspectual Classes
+# Vendler (1957) partitions predicates by internal temporal structure. The four
+# classes map almost one-to-one onto motion behaviours, which settles the
+# "hop vs rise" question with grammar instead of taste.
+#
+# An achievement is punctual, so it CUTS. An accomplishment has duration and a
+# terminus, so it BUILDS AND SETTLES. An activity has no terminus, so it LOOPS.
+# A state does not move at all.
+
+classes:
+  state:
+    label: State
+    test: no progressive ("*is being invisible")
+    motion_operator: static
+    settle: false
+    verbs: [is, are, was, were, be, been, being, am, have, has, had, knows, know, knew,
+            believes, believe, costs, cost, owns, own, contains, contain, remains, remain,
+            seems, seem, looks, appears, appear, means, meant, includes, include, exists,
+            lives, live, lacks, lack, needs, need, wants, want, matters, matter]
+    adjectival: true
+
+  activity:
+    label: Activity
+    test: progressive, no endpoint
+    motion_operator: loop
+    settle: false
+    verbs: [spreading, struggling, working, running, growing, trying, looking, waiting,
+            searching, building, fighting, pushing, carrying, thinking, talking, listening,
+            walking, moving, learning, teaching]
+    markers: ['\bkept\b', '\bkeeps\b', '\bwas \w+ing\b', '\bwere \w+ing\b', '\bcontinued\b', '\bongoing\b']
+
+  accomplishment:
+    label: Accomplishment
+    test: progressive plus endpoint, takes time
+    motion_operator: build_settle
+    settle: true
+    verbs: [built, created, wrote, made, developed, produced, completed, finished,
+            established, designed, formed, grew, increased, decreased, rose, fell,
+            improved, reduced, doubled, tripled]
+    markers: ['\bfrom .+ to\b', '\bover (?:the )?(?:\d+|several|many)\b', '\bin \d+ (?:years|months|weeks|days)\b', '\buntil\b']
+
+  achievement:
+    label: Achievement
+    test: instantaneous, punctual
+    motion_operator: cut
+    settle: false
+    verbs: [diagnosed, crashed, won, lost, died, arrived, reached, found, realised,
+            realized, noticed, discovered, started, stopped, began, ended, broke,
+            jumped, snapped, hit, struck, landed, launched, quit, failed, passed]
+    markers: ['\bsuddenly\b', '\bat (?:the )?age\b', '\bthe moment\b', '\bin an instant\b', '\bat once\b', '\bovernight\b']
+
+# Additional aspectual signals layered on top of the class.
+signals:
+  perfect:
+    markers: ['\bhas \w+ed\b', '\bhave \w+ed\b', '\bhad \w+ed\b', '\bhas (?:risen|grown|been|become)\b']
+    effect: show_result_not_transition
+  iterative:
+    markers: ['\bkept \w+ing\b', '\bover and over\b', '\bagain and again\b', '\brepeatedly\b', '\bpiled up\b']
+    effect: repeated_discrete_marks
+  habitual:
+    markers: ['\bevery (?:year|month|week|day)\b', '\beach (?:year|month|week|day)\b', '\busually\b', '\balways\b']
+    effect: cycle_or_interval_marks
+  inchoative:
+    markers: ['\bstarted to\b', '\bbegan to\b', '\bstarting to\b']
+    effect: reveal_beginning_only
+  prospective:
+    markers: ['\bis going to\b', '\bwill\b', '\bplans? to\b', '\bprojected\b', '\bexpected to\b']
+    effect: dashed_uncertain

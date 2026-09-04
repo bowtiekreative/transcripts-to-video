@@ -1,0 +1,218 @@
+version: 1.0.0
+name: LAVC Semantic Frames
+# Frame semantics (Fillmore; FrameNet). A word evokes a frame — a structured
+# scene with obligatory and optional roles — and the frame's role structure
+# tells you exactly which slots the visual must fill.
+#
+# Two things fall out and both matter:
+#   1. The visual needs exactly the slots the frame's roles filled. No more.
+#      This is the semantic-obligation list, DERIVED rather than guessed.
+#   2. UNFILLED ROLES MUST STAY UNFILLED. No initial_value means no before-bar.
+#      The frame makes the omission explicit instead of letting a template
+#      silently fabricate a baseline.
+#
+# Role names follow FrameNet's; verb groupings follow VerbNet's insight that
+# rise/climb/grow/jump share one syntactic-semantic class, so one mapping
+# replaces five hand-written patterns. This file is authored from those
+# published structures, not copied from either database.
+
+frames:
+  change_position_on_a_scale:
+    evoked_by: [increase, increased, increases, rise, rises, rose, risen, grow, grows, grew,
+                climb, climbed, jump, jumped, surge, surged, double, doubled, triple, tripled,
+                decrease, decreased, fall, falls, fell, fallen, drop, dropped, decline, declined,
+                shrink, shrank, halve, halved, reduce, reduced]
+    roles:
+      item: {core: true, slot: entity_label}
+      attribute: {core: false, slot: axis_label}
+      initial_value: {core: false, slot: start_mark}
+      final_value: {core: false, slot: end_mark}
+      difference: {core: false, slot: hero_mark}
+      initial_time: {core: false, slot: time_label}
+      final_time: {core: false, slot: time_label}
+    schema: scale
+    requires_numeric: true
+
+  causation:
+    # `make`/`made` are absent: far too ambiguous to evoke causation on the
+    # lemma alone ("made a website" is not a causal claim).
+    evoked_by: [cause, caused, causes, lead, led, leads, result, resulted, results,
+                drive, drove, drives, trigger, triggered, produce, produced,
+                force, forced, bring, brought]
+    roles:
+      cause: {core: true, slot: left}
+      effect: {core: true, slot: right}
+      actor: {core: false, slot: entity_label}
+    schema: force
+
+  preventing:
+    # `keep`/`kept` and `bar` are deliberately absent: "kept piling up" is
+    # aspectual, not preventive, and "bar" is usually a noun. They only evoke
+    # this frame with an explicit `from` complement, matched by the schema.
+    evoked_by: [prevent, prevented, prevents, block, blocked, hinder,
+                hindered, obstruct, obstructed, forbid, forbade, deny, denied]
+    roles:
+      preventing_cause: {core: true, slot: barrier}
+      event: {core: true, slot: blocked}
+    schema: blockage
+
+  becoming:
+    evoked_by: [become, became, becomes, turn, turned, get, got, grow, grew, come, came]
+    roles:
+      entity: {core: true, slot: entity_label}
+      final_category: {core: true, slot: right}
+      initial_category: {core: false, slot: left}
+    schema: source_path_goal
+
+  process_start:
+    evoked_by: [start, started, begin, began, begun, launch, launched, initiate, initiated, open, opened]
+    roles:
+      process: {core: true, slot: entity_label}
+      time: {core: false, slot: time_label}
+    schema: source_path_goal
+
+  process_end:
+    evoked_by: [end, ended, finish, finished, complete, completed, stop, stopped, close, closed, conclude, concluded]
+    roles:
+      process: {core: true, slot: entity_label}
+      time: {core: false, slot: time_label}
+    schema: source_path_goal
+
+  part_whole:
+    evoked_by: [comprise, comprised, consist, consists, contain, contains, include, includes,
+                divide, divided, compose, composed]
+    roles:
+      whole: {core: true, slot: centre}
+      part: {core: true, slot: parts}
+    schema: part_whole
+    requires_numeric: false
+
+  containing:
+    evoked_by: [contain, contains, hold, holds, enclose, enclosed, house, houses]
+    roles:
+      container: {core: true, slot: boundary}
+      contents: {core: true, slot: parts}
+    schema: container
+
+  similarity:
+    evoked_by: [resemble, resembles, match, matches, mirror, mirrors, parallel, parallels, share, shares]
+    roles:
+      entity_1: {core: true, slot: left}
+      entity_2: {core: true, slot: right}
+      dimension: {core: false, slot: axis_label}
+    schema: balance
+
+  evaluative_comparison:
+    evoked_by: [outperform, outperformed, beat, beats, exceed, exceeded, surpass, surpassed,
+                lag, lagged, trail, trailed, prefer, preferred]
+    roles:
+      profiled_item: {core: true, slot: right}
+      standard_item: {core: true, slot: left}
+      attribute: {core: false, slot: axis_label}
+    schema: scale
+
+  sequence:
+    evoked_by: [follow, followed, precede, preceded, then, next, after, before, first, second, third, finally]
+    roles:
+      earlier_event: {core: true, slot: left}
+      later_event: {core: true, slot: right}
+    schema: source_path_goal
+
+  contingency:
+    evoked_by: [if, unless, provided, depend, depends, require, requires, when]
+    roles:
+      condition: {core: true, slot: left}
+      outcome: {core: true, slot: right}
+    schema: source_path_goal
+
+  quantity:
+    evoked_by: [number, count, total, amount, sum, percent, percentage]
+    roles:
+      quantity: {core: true, slot: hero_mark}
+      individuals: {core: true, slot: entity_label}
+      unit: {core: false, slot: axis_label}
+    schema: scale
+    requires_numeric: true
+
+  proportion:
+    evoked_by: [share, proportion, fraction, majority, minority, half, third, quarter]
+    roles:
+      part: {core: true, slot: parts}
+      whole: {core: true, slot: centre}
+    schema: part_whole
+    requires_numeric: true
+
+  statement:
+    evoked_by: [say, said, says, tell, told, state, stated, explain, explained, argue, argued,
+                claim, claimed, describe, described, ask, asked]
+    roles:
+      speaker: {core: false, slot: entity_label}
+      message: {core: true, slot: headline}
+    schema: null
+
+  evidence:
+    evoked_by: [show, shows, showed, prove, proved, demonstrate, demonstrated, indicate,
+                indicates, suggest, suggests, reveal, revealed, find, found]
+    roles:
+      support: {core: true, slot: hero_mark}
+      proposition: {core: true, slot: headline}
+    schema: null
+
+  desiring:
+    evoked_by: [want, wants, wanted, wish, wished, hope, hoped, need, needs, needed, aim, aimed]
+    roles:
+      experiencer: {core: false, slot: entity_label}
+      event: {core: true, slot: headline}
+    schema: source_path_goal
+
+# Ambiguous lemmas that only evoke their frame inside a specific construction.
+# Without this, "looks for potential leads that marketing left behind" evokes
+# CAUSATION on the noun `leads` and hands the compiler two sentence fragments
+# as a cause and an effect.
+constraints:
+  lead: '\blead(?:s|ing)?\s+(?:to|into)\b'
+  leads: '\bleads\s+(?:to|into)\b'
+  led: '\bled\s+(?:to|into)\b'
+  leading: '\bleading\s+(?:to|into)\b'
+  result: '\bresult(?:s|ed|ing)?\s+in\b'
+  results: '\bresults\s+in\b'
+  resulted: '\bresulted\s+in\b'
+  bring: '\bbrings?\s+about\b'
+  brought: '\bbrought\s+about\b'
+  drive: '\bdrive[sn]?\s+\w+'
+  force: '\bforces?\s+\w+\s+to\b'
+  share: '\b(?:the|a|its|their|our|market)\s+share\b'
+  count: '\b(?:the|a)\s+count\b'
+  total: '\b(?:a|the)\s+total\b'
+  amount: '\bamount\s+(?:of|to)\b'
+  number: '\bnumber\s+of\b'
+  turn: '\bturn(?:s|ed|ing)?\s+(?:into|to)\b'
+  get: '\bgets?\s+\w+er\b'
+  got: '\bgot\s+\w+er\b'
+  open: '\bopen(?:s|ed)?\s+(?:up|the|a)\b'
+  close: '\bclose[sd]?\s+(?:the|a|down)\b'
+  find: '\bfinds?\s+that\b'
+  found: '\bfound\s+that\b'
+  when: '\bwhen\b[^.]*\b(?:we|you|they|it)\s+(?:should|must|will|can)\b'
+  before: '\bbefore\b[^.]*\bafter\b'
+  after: '\bafter\b[^.]*\bbefore\b'
+  next: '\bnext\s+(?:step|stage|phase)\b'
+  then: '\bthen\b'
+  first: '\bfirst\b[^.]*\b(?:second|then|next)\b'
+  provided: '\bprovided\s+that\b'
+  house: '\bhouses?\s+(?:the|a)\b'
+  hold: '\bholds?\s+(?:the|a)\b'
+  match: '\bmatch(?:es|ed)?\s+(?:the|a)\b'
+  parallel: '\bparallels?\s+(?:the|a)\b'
+  state: '\bstate[sd]?\s+that\b'
+  beat: '\bbeat[s]?\s+(?:the|a|out)\b'
+  lag: '\blag(?:s|ged)?\s+behind\b'
+  trail: '\btrail(?:s|ed)?\s+(?:the|a|behind)\b'
+
+# The obligation contract. A scene's visual must fill every core role that the
+# source text actually filled, and must not invent a mark for any role it did
+# not. Both halves are linted (checks 24 and semantic_loss in the selector).
+obligation_policy:
+  core_roles_must_be_visible: true
+  unfilled_roles_must_be_absent: true
+  extra_marks_are_semantic_noise: true

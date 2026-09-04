@@ -1,0 +1,57 @@
+version: 1.0.0
+name: LAVC Primary Metaphors
+# Lakoff & Johnson; Grady on primary metaphor. When the source language already
+# encodes a spatial mapping, the corresponding visual encoding is LICENSED AS
+# LITERAL rather than treated as an invented pictorial metaphor. "Sales rose"
+# may use upward position without an illustrative-mode warning, because the
+# speaker already conceptualised it spatially.
+#
+# PRIMARY metaphors are grounded in bodily experience and are near-universal.
+# COMPLEX / CULTURAL metaphors are not, and are gated.
+
+primary:
+  more_is_up:
+    evidence: ['\bros[e]\b', '\brise[sn]?\b', '\bhigh(?:er|est)?\b', '\bfell\b', '\blow(?:er|est)?\b', '\bup\b', '\bdown\b', '\bclimb', '\bdropp?e?d?\b']
+    licenses: [vertical_position, upward_vector]
+  good_is_up:
+    evidence: ['\bhigh standards\b', '\blow point\b', '\blifted\b', '\bspirits\b', '\buplifting\b', '\bdownturn\b']
+    licenses: [vertical_position, valence_colour]
+  important_is_big:
+    evidence: ['\bbig (?:deal|problem)\b', '\bhuge\b', '\bmajor\b', '\bminor\b', '\bsmall (?:issue|matter)\b', '\bmassive\b']
+    licenses: [scale, dominance]
+  time_is_a_path:
+    evidence: ['\blooking ahead\b', '\bahead\b', '\bback then\b', '\bgoing forward\b', '\bbehind us\b', '\blater\b', '\bearlier\b']
+    licenses: [horizontal_axis, ordered_marks]
+  change_is_motion:
+    evidence: ['\bmoved? to\b', '\bshift(?:s|ed)?\b', '\bheading toward\b', '\bwent from\b']
+    licenses: [translation, morph]
+  difficulty_is_weight:
+    evidence: ['\bheavy\b', '\bburden\b', '\bweighed? down\b', '\bcarr(?:y|ied) the\b', '\blighten']
+    licenses: [mass, downward_force]
+  categories_are_containers:
+    evidence: ['\bin the group\b', '\boutside (?:the )?scope\b', '\bpart of\b', '\bwithin\b']
+    licenses: [nesting, boundary]
+  relationship_is_link:
+    evidence: ['\bconnected to\b', '\btied to\b', '\bcut ties\b', '\bbonds?\b']
+    licenses: [edge, line]
+  cause_is_force:
+    evidence: ['\bdrove\b', '\bpushed us\b', '\bheld back\b', '\bforced\b', '\bdriving\b']
+    licenses: [arrow, vector, blockage]
+  knowing_is_seeing:
+    evidence: ['\bclear\b', '\btransparent\b', '\bobscured?\b', '\bI see\b', '\bvisible\b', '\binvisible\b', '\bblind spot\b']
+    licenses: [opacity, focus, reveal]
+  organisation_is_verticality:
+    evidence: ['\btop management\b', '\bunder (?:him|her|them)\b', '\bsenior\b', '\bjunior\b', '\babove (?:him|her|them)\b']
+    licenses: [vertical_hierarchy]
+
+# Culturally specific. Never on the automatic path; require an explicit
+# context gate (an author tag or a brand-profile opt-in).
+cultural:
+  - id: organisation_is_family
+    evidence: ['\blike a family\b', '\bour family\b']
+  - id: sales_is_a_pipeline
+    evidence: ['\bpipeline\b', '\bfunnel\b']
+  - id: startup_is_a_runway
+    evidence: ['\brunway\b', '\btake ?off\b']
+  - id: business_is_war
+    evidence: ['\bbattle\b', '\bwar\b', '\bconquer\b', '\btargets?\b']

@@ -1,0 +1,59 @@
+version: 1.0.0
+name: LAVC Modality and Evidentiality
+# Grammatical modality is measurable and must survive into the visual, or the
+# graphic overstates the claim the speaker actually made.
+#
+# The hard rule with teeth: label precision may never exceed claim precision.
+# "an estimated 96 percent" must not render as 96.0%. That is a lie-factor
+# violation in the labelling channel rather than the geometric one.
+
+levels:
+  asserted:
+    certainty: 1.0
+    markers: []
+    render:
+      stroke: solid
+      opacity: 1.0
+      label: exact
+  possible:
+    certainty: 0.5
+    markers: ['\bmay\b', '\bmight\b', '\bcould\b', '\bpossibly\b', '\bperhaps\b', '\bmaybe\b']
+    render:
+      stroke: dashed
+      opacity: 0.7
+      label: exact
+  approximate:
+    certainty: 0.7
+    markers: ['\broughly\b', '\babout\b', '\baround\b', '\ban estimated\b', '\bapproximately\b',
+              '\bnearly\b', '\balmost\b', '\bsome \d', '\bover \d', '\bunder \d', '\bmore than \d', '\bless than \d']
+    render:
+      stroke: solid
+      opacity: 1.0
+      label: rounded
+      range_band: true
+  forecast:
+    certainty: 0.5
+    markers: ['\bwill\b', '\bprojected\b', '\bforecast\b', '\bexpected to\b', '\bis going to\b', '\bby 20\d\d\b']
+    render:
+      stroke: dashed
+      opacity: 0.8
+      label: rounded
+      uncertainty_fan: true
+  attributed:
+    certainty: 0.8
+    markers: ['\breportedly\b', '\baccording to\b', '\bthey say\b', '\bsources? (?:say|said)\b', '\bstudies show\b', '\bresearch (?:shows|suggests)\b']
+    render:
+      stroke: solid
+      opacity: 1.0
+      label: exact
+      source_label_required: true
+  contingent:
+    certainty: 0.5
+    markers: ['\bif\b.*\bthen\b', '\bwhen\b.*\bwe should\b', '\bunless\b', '\bprovided that\b']
+    render:
+      stroke: solid
+      opacity: 1.0
+      gated: true
+
+# Negation is handled separately: it is not a certainty level but a two-step
+# comprehension process. See negation.yml.

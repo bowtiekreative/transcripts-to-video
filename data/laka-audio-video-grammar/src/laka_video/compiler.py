@@ -18,6 +18,7 @@ from .motion import compile_motion
 from .report import decision_report
 from .segmenter import build_audio_only_scenes, cues_to_units, units_to_scenes
 from .selector import TemplateSelector
+from .semantics import analyze as analyze_semantics, load_lexicon
 from .srt import parse_srt
 from .studio import load_studio_library
 from .text_rules import TextRuleEngine
@@ -111,6 +112,46 @@ def _local_energy_bars(audio: AudioAnalysis, start: float, end: float, count: in
     return output
 
 
+
+# Frame role slot -> payload key. Only ever fills a gap; an extraction the text
+# pass already made always wins, because it was made with more context.
+_ROLE_SLOT_TO_PAYLOAD = {
+    "left": "left",
+    "right": "right",
+    "centre": "center",
+    "boundary": "parent",
+    "hero_mark": "number",
+    "entity_label": "label",
+    "axis_label": "unit",
+}
+
+
+def _fill_payload_from_roles(payload: dict[str, Any], semantics: Any) -> None:
+    roles = getattr(semantics, "roles", None) or {}
+    if not roles:
+        return
+    from .semantics.lexicon import load_lexicon as _load_lex
+
+    frame_id = getattr(semantics, "frame", None)
+    if not frame_id:
+        return
+    lex = _load_lex()
+    frame = next((f for f in lex.frames if f.id == frame_id), None)
+    if frame is None:
+        return
+    for role_name, span in roles.items():
+        slot = (frame.roles.get(role_name) or {}).get("slot")
+        key = _ROLE_SLOT_TO_PAYLOAD.get(str(slot))
+        if not key or payload.get(key):
+            continue
+        text = str(span).strip()
+        if text and len(text.split()) <= 9:
+            payload[key] = text
+    # A pair is only a pair when both halves are present.
+    if bool(payload.get("left")) != bool(payload.get("right")):
+        payload.pop("left", None)
+        payload.pop("right", None)
+
 def compile_project(project_path: str | Path, grammar_dir: str | Path | None = None) -> dict[str, Path]:
     project_file = Path(project_path).expanduser().resolve()
     if not project_file.exists():
@@ -128,6 +169,9 @@ def compile_project(project_path: str | Path, grammar_dir: str | Path | None = N
     template_library = load_yaml(grammar / "templates.yml")
     studio_library = load_studio_library(grammar)
     motion_library = load_yaml(grammar / "motion.yml")
+    # Published perceptual thresholds. Every gate in the selector and the linter
+    # reads its numbers from here rather than carrying a literal.
+    perception = load_yaml(grammar / "perception.yml")
 
     timing_cfg = deep_merge(defaults.get("timing", {}), project_doc.get("rules", {}))
     text_cfg = deep_merge(defaults.get("text", {}), project_doc.get("rules", {}))
@@ -189,7 +233,8 @@ def compile_project(project_path: str | Path, grammar_dir: str | Path | None = N
     override_doc = _load_structured(overrides_path)
     data_doc = _load_structured(data_path)
     text_engine = TextRuleEngine(lexicon)
-    selector = TemplateSelector(template_library, defaults_runtime, brand, studio_library)
+    semantic_lexicon = load_lexicon(str(grammar))
+    selector = TemplateSelector(template_library, defaults_runtime, brand, studio_library, perception)
     history: list[dict[str, Any]] = []
     compiled_scenes: list[dict[str, Any]] = []
     seed = project_doc.get("project", {}).get("seed", 0)
@@ -199,6 +244,16 @@ def compile_project(project_path: str | Path, grammar_dir: str | Path | None = N
         sidecar_override = _scene_override(draft, override_doc)
         overrides = {**draft.tags, **sidecar_override}
         analysis = text_engine.classify(draft.text, overrides)
+        # The linguistic pass: relation, role structure, aspect, modality,
+        # depiction licence. It never picks a template on its own — it supplies
+        # the evidence the selector orders candidates by.
+        semantics = analyze_semantics(draft.text, semantic_lexicon)
+        analysis["semantics"] = semantics
+        # Frame roles are evidence the sentence supplied. Where the text pass
+        # left a slot empty, the frame fills it — otherwise the analysis reports
+        # an obligation no template can satisfy and every candidate is charged
+        # for dropping content that was never handed to it.
+        _fill_payload_from_roles(analysis["payload"], semantics)
         data_bound = False
         data_key = overrides.get("data")
         if data_key and isinstance(data_doc, dict):
@@ -227,7 +282,11 @@ def compile_project(project_path: str | Path, grammar_dir: str | Path | None = N
             history=history,
             seed=seed,
             overrides=overrides,
-            context={"data_bound": data_bound, "selection_mode": composition_mode},
+            context={
+                "data_bound": data_bound,
+                "selection_mode": composition_mode,
+                "semantics": semantics,
+            },
         )
         template_spec = selector.by_id.get(selected.template, {})
         motion = compile_motion(
@@ -253,6 +312,7 @@ def compile_project(project_path: str | Path, grammar_dir: str | Path | None = N
             "relation_evidence": analysis["evidence"],
             "sensitive": analysis["sensitive"],
             "continuity_key": continuity_key,
+            "semantics": semantics.to_dict(),
             "words_per_second": scene_info["words_per_second"],
             "audio_features": features,
             "template": selected.template,
@@ -304,6 +364,7 @@ def compile_project(project_path: str | Path, grammar_dir: str | Path | None = N
         },
         "content": content,
         "brand": brand,
+        "perception": perception,
         "audio_analysis": audio.public_summary(),
         "captions": captions,
         "scenes": compiled_scenes,

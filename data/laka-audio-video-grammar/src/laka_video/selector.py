@@ -4,6 +4,7 @@ import copy
 from dataclasses import dataclass
 from typing import Any
 
+from .ordering import OrderKey, build_key
 from .utils import stable_hash, triangular_fit, word_count
 
 
@@ -17,11 +18,14 @@ class Candidate:
     reasons: list[str]
     forced: bool = False
 
+    order_key: Any = None
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "template": self.template,
             "layout": self.layout,
             "score": round(self.score, 4),
+            "order": self.order_key.to_dict() if self.order_key is not None else None,
             "positive": {k: round(v, 4) for k, v in self.positive.items()},
             "penalties": {k: round(v, 4) for k, v in self.penalties.items()},
             "reasons": self.reasons,
@@ -166,12 +170,14 @@ class TemplateSelector:
         defaults: dict[str, Any],
         brand: dict[str, Any],
         studio_library: dict[str, Any] | None = None,
+        perception: dict[str, Any] | None = None,
     ):
         self.templates = template_library.get("templates", [])
         self.by_id = {t["id"]: t for t in self.templates}
         self.defaults = defaults
         self.brand = brand
         self.studio_library = studio_library or {}
+        self.perception = perception or {}
 
     def select(
         self,
@@ -207,6 +213,12 @@ class TemplateSelector:
                 penalties={} if ok else {"invalid_forced_template": 100.0},
                 reasons=["author forced template"] + failures,
                 forced=True,
+                order_key=build_key(
+                    template_id=forced_id, layout=layout, payload=payload, duration=duration,
+                    semantics=context.get("semantics"), context=local_context,
+                    perception=self.perception, seed=seed, scene_id=str(scene.get("id", "")),
+                    template=template,
+                ),
             )
             return candidate, [candidate]
 
@@ -318,27 +330,62 @@ class TemplateSelector:
                 negative["semantic_risk"] = float(penalties_cfg.get("high_risk", 10))
 
             score = sum(positive.values()) - sum(negative.values())
-            candidates.append(Candidate(tid, layout, score, positive, negative, reasons))
+            key = build_key(
+                template_id=tid,
+                layout=layout,
+                payload=payload,
+                duration=duration,
+                semantics=context.get("semantics"),
+                context=local_context,
+                perception=self.perception,
+                seed=seed,
+                scene_id=str(scene.get("id", "")),
+                template=template,
+            )
+            if key.semantic_loss:
+                reasons.append(f"drops {key.semantic_loss} semantic obligation(s)")
+            if key.false_implication_risk:
+                reasons.append(f"{key.false_implication_risk} false-implication risk(s)")
+            candidates.append(Candidate(tid, layout, score, positive, negative, reasons, order_key=key))
 
         if not candidates:
             fallback = self.by_id.get("title_card") or self.templates[0]
-            return Candidate(
-                template=fallback["id"], layout=_choose_layout(fallback.get("layouts", []), aspect), score=0.0,
-                positive={"fallback": 0.0}, penalties={}, reasons=["no compatible candidate; safe fallback"],
-            ), []
-
-        candidates.sort(
-            key=lambda c: (
-                -round(c.score / max(float(self.defaults.get("selection", {}).get("tie_epsilon", 0.05)), 1e-9)),
-                stable_hash(seed, scene.get("id"), c.template, c.layout),
+            fallback_layout = _choose_layout(fallback.get("layouts", []), aspect)
+            # §11 of SEMANTIC_MAPPING.md: congruent > none > incongruent. When
+            # nothing fits, kinetic typography is the evidence-based default,
+            # not timidity — a wrong graphic is measurably worse than no graphic.
+            fallback_candidate = Candidate(
+                template=fallback["id"], layout=fallback_layout, score=0.0,
+                positive={"fallback": 0.0}, penalties={}, reasons=["no compatible candidate; safe typographic fallback"],
+                order_key=build_key(
+                    template_id=fallback["id"], layout=fallback_layout, payload=payload,
+                    duration=duration, semantics=context.get("semantics"), context=context,
+                    perception=self.perception, seed=seed, scene_id=str(scene.get("id", "")),
+                    template=fallback,
+                ),
             )
-        )
+            return fallback_candidate, [fallback_candidate]
+
+        # Truth first. A weighted sum lets three fewer marks buy a lie; a
+        # lexicographic order stops comparing the moment a truth term differs.
+        candidates.sort(key=lambda c: c.order_key.as_tuple())
         selected = candidates[0]
         if str(context.get("selection_mode", "studio")) == "wildcard":
             wildcard = (self.studio_library.get("modes") or {}).get("wildcard") or {}
             limit = max(1, int(wildcard.get("candidate_limit", 3)))
-            band = max(0.0, float(wildcard.get("score_band", 8)))
-            pool = [candidate for candidate in candidates if selected.score - candidate.score <= band][:limit]
+            # Truth-safe means exactly that: no dropped obligation, no false
+            # implication, and inside the readability and chunk gates. A score
+            # band would let the wildcard reach a candidate the order rejected.
+            gate = float(((self.perception.get("fixation") or {}).get("duration_gate_ratio", 0.70)))
+            chunk_max = int(((self.perception.get("working_memory") or {}).get("max_simultaneous_marks", 4)))
+            pool = [
+                candidate for candidate in candidates
+                if candidate.order_key is not None
+                and candidate.order_key.semantic_loss == 0
+                and candidate.order_key.false_implication_risk == 0
+                and candidate.order_key.chunks <= chunk_max
+                and candidate.order_key.scan_ratio <= gate
+            ][:limit]
             if pool:
                 choice_hash = stable_hash(seed, scene.get("id"), analysis.get("primary_relation"), "wildcard")
                 selected = copy.deepcopy(pool[int(choice_hash[:16], 16) % len(pool)])

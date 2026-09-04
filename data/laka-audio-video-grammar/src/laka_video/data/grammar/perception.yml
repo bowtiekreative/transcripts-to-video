@@ -1,0 +1,254 @@
+version: 1.0.0
+name: LAVC Perception Constants
+# Every number here is a published measurement or an engineering threshold
+# derived from one. Nothing is a taste call. Where a value is a convention it
+# says so in `basis`, so a reviewer can tell research from engineering.
+#
+# Sources are named per block. See docs/11-perception-and-semantics.md.
+
+# ---------------------------------------------------------------- §1 time ---
+reading:
+  # Glanced on-screen text while also listening. Conservative: ~180 wpm.
+  on_screen_words_per_second: 3.0
+  # Netflix Timed Text Style Guide, adult audiences.
+  subtitle_characters_per_second_max: 17.0
+  subtitle_characters_per_second_child: 12.0
+  subtitle_min_seconds: 0.83          # 5/6 s — below this a cue reads as a flash
+  subtitle_max_seconds: 7.0
+  basis: measured
+
+fixation:
+  # A saccade + fixation cycle. Scanning n homogeneous peers follows a Hick-like
+  # log law rather than growing linearly.
+  orient_seconds: 0.35
+  scan_base_seconds: 0.30
+  scan_log_coefficient: 0.15          # t_scan = base + coef * log2(n + 1)
+  hold_seconds: 0.60                  # the beat where meaning settles
+  # HARD GATE. The headroom between "technically legible" and "comfortable".
+  duration_gate_ratio: 0.70
+  basis: measured
+
+speech:
+  narration_words_per_minute: 145.0
+  syllables_per_word: 1.5
+  # On-screen words are a FRACTION of spoken words, never a transcript of them.
+  on_screen_share_min: 0.25
+  on_screen_share_max: 0.35
+  basis: measured
+
+# ------------------------------------------------------- §2 working memory ---
+working_memory:
+  # Cowan 2001: 4±1 simultaneous visual chunks. Miller's 7±2 is about
+  # rehearsable lists and does not apply here.
+  max_simultaneous_marks: 4
+  max_concurrent_motion_events: 2
+  max_encoded_channels: 2
+  # Direct labelling removes an entire chunk class (the colour→name mapping).
+  prefer_direct_labels: true
+  basis: measured
+
+# -------------------------------------------------- §3 magnitude perception ---
+magnitude:
+  # Stevens' power law exponents. ψ = k·φ^n
+  stevens_exponents:
+    position: 1.0
+    length: 1.0
+    angle: 0.9
+    area: 0.7
+    volume: 0.6
+    saturation: 0.7
+    brightness: 0.42
+  # Cleveland & McGill 1984, most to least accurate. Lower rank wins.
+  accuracy_rank:
+    position_common_scale: 1
+    position_identical_scales: 2
+    length: 3
+    angle: 4
+    area: 5
+    volume: 6
+    shading: 7
+  # Channels that may carry a quantity on their own.
+  quantity_safe_channels: [position_common_scale, position_identical_scales, length]
+  # Weber fraction for line length. Two bars differing by less than this are
+  # indistinguishable, so drawing the difference asserts a salience that is not
+  # there. Print the delta as text instead.
+  weber_fraction_length: 0.03
+  min_drawable_difference: 0.05
+  # Tufte. A bar's length must be proportional to its value from zero.
+  lie_factor_min: 0.95
+  lie_factor_max: 1.05
+  bar_baseline_must_be_zero: true
+  line_may_truncate_baseline: true
+  basis: measured
+
+# --------------------------------------------------------- §4 motion timing ---
+motion:
+  instantaneous_ceiling_ms: 100       # below this no motion is communicated
+  responsive_band_ms: [100, 400]      # Doherty threshold at 400 ms
+  entrance_ms: [200, 500]
+  slow_floor_ms: 1000
+  # Duration scales sub-linearly with distance so apparent velocity stays in a
+  # comfortable band.
+  distance_exponent: 0.5
+  reference_distance_px: 400.0
+  reference_duration_ms: 300.0
+  velocity_comfortable_px_per_s: [800, 2500]
+  velocity_drift_floor_px_per_s: 200
+  velocity_cut_ceiling_px_per_s: 4000
+  # The design system's single curve.
+  easing_bezier: [0.16, 1.0, 0.3, 1.0]
+  # Damped spring, for physical settling. ζ<0.6 reads as bounce and is out of
+  # system for LAKA.
+  damping_ratio_precise: 1.0          # critically damped: data, charts
+  damping_ratio_confident: 0.8
+  damping_ratio_floor: 0.6
+  # Perceptual grouping window (Gestalt common fate).
+  stagger_ms: [60, 120]
+  stagger_total_budget_ms: 1200       # stagger = clamp(1200/n, 60, 120)
+  # Count-up. Disabled by policy in this compiler: intermediate values state
+  # facts that are false, not merely imprecise. Kept here so the constants are
+  # on record if the policy is ever revisited.
+  count_up_enabled: false
+  count_up_seconds: [0.8, 2.5]
+  count_up_max_digit_changes_per_second: 15
+  # Ken Burns. Above ~4%/s this reads as a zoom and competes with content.
+  camera_scale_rate_per_second_max: 0.02
+  parallax_layers: [0.9, 0.95, 1.05, 1.1]
+  basis: measured
+
+# --------------------------------------------------------------- §5 AV sync ---
+sync:
+  # ITU-R BT.1359 detectability thresholds. The window is asymmetric: the ear
+  # gets priority because narration is the master clock.
+  visual_may_lag_audio_ms: 125
+  visual_may_lead_audio_ms: 45
+  target_offset_ms: [0, 100]          # land 0–100 ms AFTER the stressed syllable
+  basis: measured
+
+# ------------------------------------------------------------ §6 typography ---
+typography:
+  # Expressed against the SHORT edge of the frame, which is what the renderer's
+  # U = min(W,H)/108 unit measures. 1U = 0.926% of the short edge.
+  unit_divisor: 108
+  body_min_units: 2.8                 # ≥2.6% of the short edge
+  micro_min_units: 1.6                # ≥1.5%, non-essential text only
+  display_units: [6.0, 14.0]
+  social_body_min_units: 4.0          # phone at arm's length
+  measure_characters: [45, 75]
+  measure_ideal: 66
+  body_line_height: [1.4, 1.5]
+  display_line_height: [1.0, 1.1]
+  display_tracking_em: [-0.05, -0.03]
+  micro_tracking_em: [0.10, 0.14]
+  contrast_body: 4.5                  # WCAG AA
+  contrast_large: 3.0
+  contrast_aaa: 7.0
+  contrast_over_imagery: 7.0          # apparent contrast drops over moving image
+  protect_type_with_gradient: true    # never a solid capsule
+  basis: measured
+
+safe_area:
+  action_safe_ratio: 0.05
+  title_safe_ratio: 0.10
+  vertical_social_top_ratio: 0.14     # platform UI
+  vertical_social_bottom_ratio: 0.20
+  optical_centre_offset_ratio: 0.05   # perceived centre sits ~5% above geometric
+  basis: convention
+
+# ------------------------------------------------------- §7 accessibility ---
+accessibility:
+  max_flashes_per_second: 3           # WCAG 2.3.1
+  respect_reduced_motion: true        # WCAG 2.3.3
+  # Vestibular risk factors.
+  max_full_frame_travel_ratio: 0.20
+  max_scale_change: 1.3
+  max_rotation_degrees: 10
+  max_parallax_differential: 0.30
+  # No meaning may be carried by hue alone: accent + arrow, red + ✕, green + ✓.
+  colour_must_be_doubled: true
+  basis: measured
+
+# -------------------------------------------------------- §8 composition ---
+composition:
+  thirds: [0.3333, 0.6667]
+  golden_section: 0.618
+  gutter_ratio: [0.02, 0.03]
+  edge_ratio: 0.075
+  caption_band_ratio: 0.17
+  caption_bottom_ratio: 0.07
+  # Crowding (Bouma's law): critical spacing ≈ 0.5 × eccentricity. Marks far
+  # from fixation need proportionally more clear surround.
+  min_gap_units_centre: 1.5
+  min_gap_units_outer: 3.0
+  min_gap_units_corner: 4.0
+  # Gestalt proximity: intended groups must be clearly tighter than the space
+  # between groups.
+  group_gap_ratio_min: 1.5
+  basis: measured
+
+# Cardinality → topology. Deterministic, and the break between 4 and 5 is a
+# change of comprehension act, not a matter of degree.
+cardinality:
+  1: single_focus
+  2: split
+  3: triptych
+  4: grid
+  8: sequence
+  9: aggregate                        # 9+ : never render peer cards, summarize
+
+# --------------------------------------------------- §9 density ladder ------
+# Stop at the first level that covers 100% of the semantic obligations.
+density_ladder:
+  - id: D0
+    label: caption only
+    max_obligations: 1
+    allows_quantity: false
+    max_chunks: 1
+  - id: D1
+    label: one hero mark
+    max_chunks: 2
+    max_time_ratio: 0.50
+  - id: D2
+    label: one relationship
+    max_chunks: 3
+    max_entities: 3
+  - id: D3
+    label: full structure
+    max_chunks: 4
+    min_duration_seconds: 6.0
+    requires_numeric_evidence: true
+
+# ------------------------------------------------ §10 composition rhythm ----
+# Evaluated in a second pass, once the whole storyboard exists.
+rhythm:
+  no_consecutive_max_density: true
+  after_max_density_ceiling: D1
+  accent_bleed_scenes_per_piece: 1    # exactly one, at the conversion moment
+  carrier_persistence_min_ratio: 0.40
+  hero_marks_per_scene: 1
+  non_hero_max_words: 2
+  target_seconds_per_scene: 7.5
+  scene_count_tolerance: 0.20
+  ending_must_be_forward_facing: true
+
+# --------------------------------------------- §2/§8 sparseness (doc 3) -----
+sparseness:
+  # Salience is conserved: d′ falls as 1/√n with the number of distinct marks.
+  salience_exponent: -0.5
+  # Treisman: pop-out needs uniqueness on exactly ONE feature dimension against
+  # homogeneous distractors, ~250 ms. Otherwise search goes serial at 40–60 ms
+  # per item.
+  preattentive_ms: 250
+  serial_search_ms_per_item: 50
+  max_unique_feature_dimensions: 1
+  # Hick–Hyman choice cost.
+  hick_coefficient_ms: 150
+  # Tufte. Perturb the data: if a pixel does not move, it is not data-ink.
+  data_ink_ratio_min: 0.80
+  # Redundancy is not zero. A viewer is a noisy channel: they glance away, the
+  # phone is at arm's length, sound is off, the scene does not come back.
+  justified_redundancies:
+    - length_and_printed_value
+    - accent_and_position_and_glyph
+    - caption_parallel_to_narration
+  basis: measured

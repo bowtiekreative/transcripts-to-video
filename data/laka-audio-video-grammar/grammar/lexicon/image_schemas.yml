@@ -1,0 +1,191 @@
+version: 1.0.0
+name: LAVC Image Schemas
+# Image schemas (Johnson 1987; Mandler) are the recurring spatial structures
+# that both language and perception organise around. Each has essentially one
+# canonical diagram, which is why they are the right level for this mapping.
+#
+# THE NOUN NEVER CHOOSES THE GRAPHIC. The triggers below are prepositions,
+# verb classes and constructions — the relation, not the entities. That is what
+# makes this deterministic without being a keyword dictionary.
+#
+# `template` names an element that exists in templates.yml today.
+# `needs_element` names one the grammar does not yet carry; the selector treats
+# a schema with only `needs_element` as unrealisable and falls back per §11 of
+# SEMANTIC_MAPPING.md (congruent > none > incongruent).
+
+schemas:
+  container:
+    label: Container
+    diagram: boundary with contents
+    triggers:
+      preposition: ['\bin(?:side)?\b', '\bwithin\b', '\bout(?:side)? of\b', '\bamong\b']
+      verb: ['\bcontains?\b', '\bincludes?\b', '\bexcluded?\b', '\benclos', '\bbelongs? to\b']
+      construction: ['\bpart of\b', '\bmember of\b', '\bsubset of\b']
+    template: hierarchy_tree
+    needs_element: parts_diagram
+    entities: [whole, parts]
+
+  source_path_goal:
+    label: Source–Path–Goal
+    diagram: directed path with both endpoints
+    triggers:
+      preposition: ['\bfrom\b.*\bto\b', '\btoward\b', '\buntil\b']
+      verb: ['\barrives?\b', '\breach(?:es|ed)?\b', '\bends? (?:at|up)\b', '\bgets? to\b', '\bmoved? to\b']
+      construction: ['\bwent from\b', '\bturn(?:s|ed)? .* into\b']
+    template: transformation_arrow
+    entities: [source, goal]
+
+  path_open:
+    label: Path without goal
+    diagram: open path, no terminus
+    triggers:
+      preposition: ['\balong\b', '\bthrough(?:out)?\b']
+      verb: ['\bspread', '\bcontinu', '\bkeeps? going\b', '\bongoing\b']
+    template: steps
+    needs_element: ripple
+    entities: [source]
+
+  link:
+    label: Link
+    diagram: node and edge
+    triggers:
+      verb: ['\bconnect', '\btied? to\b', '\battach', '\bdepends? on\b', '\brelate', '\blinks? to\b', '\bbrings? together\b']
+      construction: ['\brelated to\b', '\bassociated with\b']
+    template: network
+    entities: [centre, nodes]
+
+  force:
+    label: Force / compulsion
+    diagram: vector arrow
+    triggers:
+      verb: ['\bdrove\b', '\bdrives?\b', '\bpush(?:es|ed)?\b', '\bforced?\b', '\bcaus(?:es|ed)\b', '\bmade\b', '\bled to\b', '\bresults? in\b', '\btriggers?\b']
+    template: cause_effect
+    entities: [cause, effect]
+
+  blockage:
+    label: Blockage
+    diagram: arrow meeting a boundary
+    triggers:
+      verb: ['\bprevent', '\bblock', '\bstopp?e?d?\b', '\bheld back\b', '\bkept .* from\b', '\bbarrier\b', '\bshut out\b']
+    needs_element: blocked_arrow
+    entities: [force, barrier]
+
+  counterforce:
+    label: Counterforce
+    diagram: opposed vectors
+    triggers:
+      preposition: ['\bdespite\b', '\bagainst\b', '\bin spite of\b']
+      verb: ['\bresist', '\bpush(?:ed)? back\b', '\bfought\b', '\bcountered?\b']
+    template: comparison_split
+    needs_element: versus
+    entities: [force, counterforce]
+
+  scale:
+    label: Scale
+    diagram: ordered axis
+    triggers:
+      verb: ['\bincreas', '\bdecreas', '\bros[e]\b', '\brise[sn]?\b', '\bfell\b', '\bfall(?:s|en)?\b', '\bgr(?:ew|ows?)\b', '\bclimb', '\bdropp?e?d?\b', '\bjump(?:s|ed)?\b', '\brank(?:s|ed)?\b']
+      construction: ['\bmore than\b', '\bless than\b', '\btop \d', '\bbottom \d', '\bby \d+ ?%']
+    template: bar_chart
+    needs_element: ranked_bars
+    entities: [item, attribute, difference]
+
+  balance:
+    label: Balance
+    diagram: symmetric pivot
+    triggers:
+      construction: ['\btrade[- ]off\b', '\bat the expense of\b', '\boffsets?\b', '\bweigh(?:ed|s)?\b', '\bon (?:the )?one hand\b']
+    template: comparison_split
+    entities: [left, right]
+
+  part_whole:
+    label: Part–whole
+    diagram: segmented whole
+    triggers:
+      verb: ['\bmade (?:up )?of\b', '\bconsists? of\b', '\bcompris', '\bdivided into\b']
+      construction: ['\bcomponents?\b', '\bsubsets?\b', '\b\d+ ?% of\b']
+    needs_element: parts_diagram
+    entities: [whole, parts]
+
+  centre_periphery:
+    label: Centre–periphery
+    diagram: hub and ring
+    triggers:
+      construction: ['\bcore\b', '\bcentral to\b', '\bat the cent(?:re|er)\b', '\bmarginal', '\bon the (?:fringe|edge|outskirts)\b', '\bleft outside\b']
+    template: network
+    entities: [centre, periphery]
+
+  cycle:
+    label: Cycle
+    diagram: closed circuit
+    triggers:
+      verb: ['\breturns?\b', '\brepeats?\b', '\bloops?\b', '\bfeeds? back\b']
+      construction: ['\bagain and again\b', '\bevery (?:year|month|week|day|time)\b', '\bover and over\b', '\bfeedback\b']
+    template: cycle
+    entities: [stages]
+
+  merging:
+    label: Merging
+    diagram: paths joining
+    triggers:
+      verb: ['\bcombine', '\bjoin(?:s|ed)?\b', '\bconverge', '\bintegrat', '\bmerge']
+    needs_element: merge_branch
+    entities: [inputs, result]
+
+  splitting:
+    label: Splitting
+    diagram: path splitting
+    triggers:
+      verb: ['\bdivid', '\bbranch', '\bdiverge', '\bfork', '\bsplits?\b', '\bseparate']
+    needs_element: merge_branch
+    entities: [source, outputs]
+
+  iteration:
+    label: Iteration
+    diagram: repeated marks
+    triggers:
+      verb: ['\bkept\b', '\bpiled? up\b', '\baccumulat']
+      construction: ['\brepeatedly\b', '\bover and over\b', '\beach time\b', '\bone after another\b']
+    needs_element: accumulation
+    entities: [unit, count]
+
+  full_empty:
+    label: Full–empty
+    diagram: fill level
+    triggers:
+      verb: ['\bfill', '\bdrain', '\bdeplet', '\bempt(?:y|ied)\b', '\bran out\b']
+      construction: ['\bat capacity\b', '\bhalf (?:full|empty)\b']
+    needs_element: progress_bar
+    entities: [capacity, level]
+
+  near_far:
+    label: Near–far
+    diagram: proximity and gap
+    triggers:
+      preposition: ['\bclose to\b', '\bdistant\b', '\bfar from\b']
+      verb: ['\bapproach', '\bnear(?:s|ed)\b', '\bgap between\b']
+      construction: ['\bthe gap\b', '\bfalls? short\b']
+    template: comparison_split
+    needs_element: gap_slide
+    entities: [a, b]
+
+# Where two schemas fire on one proposition, the earlier entry wins. Ordering
+# is by specificity of the trigger, not by frequency.
+precedence:
+  - blockage
+  - counterforce
+  - cycle
+  - merging
+  - splitting
+  - iteration
+  - full_empty
+  - source_path_goal
+  - force
+  - part_whole
+  - container
+  - centre_periphery
+  - link
+  - balance
+  - near_far
+  - scale
+  - path_open

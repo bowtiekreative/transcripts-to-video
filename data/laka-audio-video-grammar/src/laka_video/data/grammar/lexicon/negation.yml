@@ -1,0 +1,36 @@
+version: 1.0.0
+name: LAVC Negation
+# Kaup & Lüdtke: comprehension of a negated sentence is two-step. The reader
+# first activates the POSITIVE state, then suppresses it. Negated content stays
+# partially activated, and negated sentences take measurably longer to process.
+#
+# Design consequence, and it is counter-intuitive:
+#   CORRECT: show the thing, then strike it out.
+#   WRONG:   show only its absence.
+# An empty frame does not communicate "no sales."
+
+markers:
+  verbal: ['\bnot\b', "\\bn't\\b", '\bnever\b', '\bno longer\b', '\bdid not\b', '\bdoes not\b', '\bdo not\b',
+           '\bcannot\b', "\\bcan't\\b", "\\bwon't\\b", "\\bdidn't\\b", "\\bdoesn't\\b", "\\bisn't\\b", "\\baren't\\b"]
+  nominal: ['\bno\b', '\bnone\b', '\bnothing\b', '\bnobody\b', '\bneither\b', '\bwithout\b']
+  privative: ['\black(?:s|ed|ing)?\b', '\bmissing\b', '\babsent\b', '\bfail(?:s|ed)? to\b', '\bstopped\b']
+
+render:
+  show_positive_first: true
+  element: strike_through
+  alternate: check_x
+
+# Scope. These have different truth conditions and getting it wrong is a
+# factual error, not a style choice.
+scope:
+  # "not [all customers agreed]" — a partial group survives. Strike the
+  # QUANTIFIER, not the group.
+  - id: negated_quantifier
+    pattern: '\bnot\s+(all|every|everyone|everybody|always)\b'
+    target: quantifier
+    survives: partial_group
+  # "[all customers] did not agree" — the whole group is negated.
+  - id: negated_predicate
+    pattern: '\b(all|every|everyone|everybody)\b[^.]*\b(?:did not|does not|do not|never)\b'
+    target: group
+    survives: none
