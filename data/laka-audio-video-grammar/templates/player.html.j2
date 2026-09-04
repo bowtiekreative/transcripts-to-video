@@ -162,8 +162,11 @@
   function renderTitle(scene,p) {
     const P=scene.payload||{};
     const asset=P.asset||scene.asset;
-    const bg=asset ? `<img src="${esc(asset)}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.42;filter:saturate(.75) contrast(.9);" />` : "";
-    return `${bg}<div style="position:absolute;inset:0;background:linear-gradient(90deg,rgba(7,9,13,.97) 0%,rgba(7,9,13,.78) 56%,rgba(7,9,13,.34) 100%);"></div>
+    const imageMode=scene.layout==="image_overlay"&&asset;
+    const imageScale=1.08-.045*easeInOut(p);
+    const bg=imageMode ? `<div style="position:absolute;inset:-3%;transform:scale(${imageScale});"><img src="${esc(asset)}" alt="" style="width:100%;height:100%;object-fit:cover;filter:saturate(.85) contrast(.92);" /></div>` : "";
+    const grade=imageMode ? `<div style="position:absolute;inset:0;background:linear-gradient(90deg,rgba(7,9,13,.98) 0%,rgba(7,9,13,.84) 43%,rgba(7,9,13,.22) 78%,rgba(7,9,13,.08) 100%),linear-gradient(0deg,rgba(15,26,69,.2),rgba(15,26,69,.2));"></div><div style="position:absolute;inset:0;opacity:.06;background-image:repeating-radial-gradient(circle at 20% 30%,#fff 0,#fff .65px,transparent .8px,transparent 3px);mix-blend-mode:soft-light;"></div>` : `<div style="position:absolute;inset:0;background:linear-gradient(90deg,rgba(7,9,13,.97) 0%,rgba(7,9,13,.78) 56%,rgba(7,9,13,.34) 100%);"></div>`;
+    return `${bg}${grade}
       <div style="position:absolute;left:${px(edge)};right:${px(edge)};top:${px(H*(landscape?.22:.27))};display:flex;flex-direction:column;gap:${px(3.5*U)};">
         ${label(P.label || STORY.content?.speaker || "",p,.02)}
         ${headline(P.headline || scene.text,p,.08,13.2)}
@@ -444,18 +447,16 @@
     const scene=sceneAt(t);
     if (!scene) { stage.innerHTML=""; return; }
     const p=normalized(scene,t);
-    const sceneIndex=Math.max(0,STORY.scenes.indexOf(scene));
-    const isOpening=sceneIndex===0;
-    const isClose=STORY.scenes.length>1&&sceneIndex===STORY.scenes.length-1;
+    const onBlue=scene.template==="cta_card";
     const drift=camera(scene,p);
     stage.style.background=colors.canvas;
     stage.style.color=colors.text;
     stage.innerHTML=`<div style="position:absolute;inset:0;background:${colors.canvas};overflow:hidden;">
       <div style="position:absolute;inset:-3%;${drift}">
         <div style="position:absolute;inset:0;background:radial-gradient(ellipse 68% 86% at 0% 34%,rgba(255,255,255,.065),transparent 72%);"></div>
-        ${isOpening?renderTitle(scene,p):isClose?renderCTA(scene,p):renderTemplate(scene,p,t)}
+        ${renderTemplate(scene,p,t)}
       </div>
-      ${captionAt(t,isClose)}
+      ${captionAt(t,onBlue)}
     </div>`;
     if (DEBUG) {
       debug.style.display="block";

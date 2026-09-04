@@ -87,6 +87,20 @@
         }
       }
     },
+    "composition": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "enum": [
+            "studio",
+            "wildcard"
+          ]
+        },
+        "library": {
+          "type": "string"
+        }
+      }
+    },
     "output": {
       "type": "object",
       "required": [

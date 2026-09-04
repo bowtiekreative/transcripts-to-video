@@ -30,6 +30,19 @@ only the shared deterministic helpers:
 No timers, random values, generative calls, or stateful transitions belong in a
 scene. Scrubbing backward and rendering offline must reproduce the same frame.
 
+## Studio selection contract
+
+`grammar/studio-library.yml` is the composition authority layered over the
+semantic template grammar. **Choose in Studio** exposes the selected candidate
+and nearby candidates that already passed payload, timing, data, aspect, and
+truth constraints. **Deterministic wildcard** selects only inside that valid
+score band using `project.seed`; it is varied, not unbounded or random.
+
+An `image_overlay` layout is incomplete without `scene.asset`. The linter emits
+blocking code `asset.required`, and the web workflow must collect a PNG, JPG,
+or WebP for every selected image scene before it invokes the renderer. Images
+use the fixed LAKA grade, tint, grain, and text-protection flood.
+
 ## Fixed visual laws
 
 - Default output is 1920×1080; alternate aspect ratios retain full resolution.
@@ -41,5 +54,6 @@ scene. Scrubbing backward and rendering offline must reproduce the same frame.
 - Every entry has an exit, and visual density remains below spoken density.
 
 To make a new version, replace the SRT-derived `CAPS`, regenerate the named
-scene cue list, and supply one deterministic positioned block per scene. Keep
-the palette, type scale, left rail, helper behavior, and blue close unchanged.
+scene cue list, select or seed the Studio cut, fill every required image slot,
+and supply one deterministic positioned block per scene. Keep the palette,
+type scale, left rail, helper behavior, and rationed blue CTA cut unchanged.

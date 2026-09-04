@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import base64
 import json
 import math
+import mimetypes
 import shutil
 import subprocess
 from pathlib import Path
@@ -18,6 +20,33 @@ def _find_media(output_dir: Path, stem: str) -> Path | None:
     return matches[0] if matches else None
 
 
+def _image_sources(story: dict, output_dir: Path) -> dict[str, str]:
+    sources = sorted(
+        {
+            str(scene.get("asset") or scene.get("payload", {}).get("asset"))
+            for scene in story.get("scenes", [])
+            if scene.get("asset") or scene.get("payload", {}).get("asset")
+        }
+    )
+    resolved: dict[str, str] = {}
+    for source in sources:
+        if source.startswith(("data:", "http://", "https://")):
+            resolved[source] = source
+            continue
+        asset_path = Path(source).expanduser()
+        if not asset_path.is_absolute():
+            asset_path = output_dir / asset_path
+        asset_path = asset_path.resolve()
+        if not asset_path.is_file():
+            raise FileNotFoundError(f"Required scene image asset was not found: {source}")
+        mime_type = mimetypes.guess_type(asset_path.name)[0] or "application/octet-stream"
+        if not mime_type.startswith("image/"):
+            raise ValueError(f"Required scene asset is not a supported image: {source}")
+        encoded = base64.b64encode(asset_path.read_bytes()).decode("ascii")
+        resolved[source] = f"data:{mime_type};base64,{encoded}"
+    return resolved
+
+
 def render_mp4(
     preview_path: str | Path,
     storyboard_path: str | Path,
@@ -30,6 +59,7 @@ def render_mp4(
     if not preview.exists() or not storyboard_file.exists():
         raise FileNotFoundError("Preview HTML and storyboard JSON must exist before rendering.")
     story = json.loads(storyboard_file.read_text(encoding="utf-8"))
+    image_sources = _image_sources(story, preview.parent)
     comp = story["composition"]
     width, height = int(comp["width"]), int(comp["height"])
     duration = float(comp["duration"])
@@ -112,6 +142,8 @@ def render_mp4(
         # A base URL keeps relative project assets resolvable during ordinary local rendering.
         html = preview.read_text(encoding="utf-8")
         html = html.replace("<head>", f'<head><base href="{preview.parent.as_uri()}/">', 1)
+        for source, embedded in image_sources.items():
+            html = html.replace(json.dumps(source), json.dumps(embedded))
         html = html.replace(
             'const EXPORT = new URLSearchParams(location.search).get("export") === "1";',
             'const EXPORT = true;',
@@ -119,6 +151,21 @@ def render_mp4(
         )
         page.set_content(html, wait_until="load")
         page.wait_for_function("window.LAKA_READY === true")
+        if image_sources:
+            failed_assets = page.evaluate(
+                """async sources => {
+                  const results = await Promise.all(sources.map(src => new Promise(resolve => {
+                    const image = new Image();
+                    image.onload = () => resolve(null);
+                    image.onerror = () => resolve(src);
+                    image.src = src;
+                  })));
+                  return results.filter(Boolean);
+                }""",
+                list(image_sources.values()),
+            )
+            if failed_assets:
+                raise RuntimeError("Could not decode one or more required scene image assets.")
         stage = page.locator("#stage")
         try:
             for frame in range(total_frames):

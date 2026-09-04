@@ -13,9 +13,17 @@ const jobError = document.querySelector("#job-error");
 const result = document.querySelector("#result");
 const menuButton = document.querySelector("#menu-button");
 const menuPanel = document.querySelector("#menu-panel");
+const studioReview = document.querySelector("#studio-review");
+const studioReviewForm = document.querySelector("#studio-review-form");
+const studioScenes = document.querySelector("#studio-scenes");
+const studioVersion = document.querySelector("#studio-version");
+const studioPrinciple = document.querySelector("#studio-principle");
+const studioError = document.querySelector("#studio-error");
+const studioRenderButton = document.querySelector("#studio-render-button");
 
 const narrationExtensions = new Set(["aac", "flac", "m4a", "mkv", "mov", "mp3", "mp4", "oga", "ogg", "opus", "wav", "webm"]);
-const stageOrder = ["preparing", "compiling", "rendering", "complete"];
+const stageOrder = ["preparing", "compiling", "review", "rendering", "complete"];
+const terminalStatuses = new Set(["review", "complete", "failed"]);
 let pollTimer;
 
 function extension(filename) {
@@ -70,14 +78,112 @@ function validateFiles() {
 }
 
 function setStepper(status, jobProgress) {
-  let index = status === "queued" ? 0 : stageOrder.indexOf(status);
-  if (status === "failed") index = jobProgress >= 28 ? 2 : jobProgress >= 14 ? 1 : 0;
+  let index = status === "queued" ? (jobProgress >= 30 ? 3 : 0) : stageOrder.indexOf(status);
+  if (status === "failed") index = jobProgress >= 36 ? 3 : jobProgress >= 28 ? 2 : jobProgress >= 14 ? 1 : 0;
   document.querySelectorAll("#stepper li").forEach((item, itemIndex) => {
     item.classList.toggle("is-complete", itemIndex < index || status === "complete");
     item.classList.toggle("is-current", itemIndex === index && status !== "complete");
     if (itemIndex === index && status !== "complete") item.setAttribute("aria-current", "step");
     else item.removeAttribute("aria-current");
   });
+}
+
+function formatTime(seconds) {
+  const value = Math.max(0, Number(seconds) || 0);
+  const minutes = Math.floor(value / 60);
+  return `${String(minutes).padStart(2, "0")}:${(value - minutes * 60).toFixed(1).padStart(4, "0")}`;
+}
+
+function selectedChoice(select) {
+  return select.options[select.selectedIndex];
+}
+
+function syncSceneAsset(sceneCard) {
+  const select = sceneCard.querySelector("select");
+  const option = selectedChoice(select);
+  const assetField = sceneCard.querySelector(".asset-field");
+  const assetInput = assetField.querySelector("input");
+  const description = sceneCard.querySelector(".choice-description");
+  const needsAsset = option.dataset.requiresAsset === "true";
+  assetField.hidden = !needsAsset;
+  assetInput.required = needsAsset;
+  description.textContent = option.dataset.description || "Valid composition from the Studio grammar.";
+}
+
+function renderStudioReview(job) {
+  const review = job.review;
+  if (!review) {
+    studioReview.hidden = true;
+    return;
+  }
+  studioReview.hidden = false;
+  studioReviewForm.action = job.render_url;
+  studioVersion.textContent = `${review.library} · v${review.version}`;
+  studioPrinciple.textContent = review.principle;
+  studioScenes.replaceChildren();
+
+  for (const scene of review.scenes) {
+    const card = document.createElement("article");
+    card.className = "studio-scene";
+
+    const copy = document.createElement("div");
+    const number = document.createElement("span");
+    number.className = "scene-number";
+    number.textContent = String(scene.index).padStart(2, "0");
+    const kicker = document.createElement("p");
+    kicker.className = "scene-kicker";
+    kicker.textContent = `${formatTime(scene.start)}–${formatTime(scene.end)} · ${scene.relation.replaceAll("_", " ")}`;
+    const headline = document.createElement("h4");
+    headline.className = "scene-headline";
+    headline.textContent = scene.headline;
+    const source = document.createElement("p");
+    source.className = "scene-text";
+    source.textContent = scene.text;
+    copy.append(number, kicker, headline, source);
+
+    const controls = document.createElement("div");
+    controls.className = "scene-controls";
+    const choiceId = `choice-${scene.id}`;
+    const label = document.createElement("label");
+    label.className = "field-label";
+    label.htmlFor = choiceId;
+    label.textContent = `Scene ${scene.index} composition`;
+    const select = document.createElement("select");
+    select.id = choiceId;
+    select.name = `choice_${scene.id}`;
+    for (const choice of scene.choices) {
+      const option = document.createElement("option");
+      option.value = choice.key;
+      option.textContent = `${choice.label}${choice.recommended ? " · recommended" : ""}`;
+      option.selected = choice.key === scene.selected;
+      option.dataset.requiresAsset = String(choice.requires_asset);
+      option.dataset.description = choice.description || "";
+      select.append(option);
+    }
+    const description = document.createElement("p");
+    description.className = "choice-description";
+
+    const assetField = document.createElement("div");
+    assetField.className = "asset-field";
+    const assetId = `asset-${scene.id}`;
+    const assetLabel = document.createElement("label");
+    assetLabel.className = "field-label";
+    assetLabel.htmlFor = assetId;
+    assetLabel.textContent = `Image for scene ${scene.index}`;
+    const assetInput = document.createElement("input");
+    assetInput.id = assetId;
+    assetInput.name = `asset_${scene.id}`;
+    assetInput.type = "file";
+    assetInput.accept = "image/png,image/jpeg,image/webp";
+    const assetHint = document.createElement("small");
+    assetHint.textContent = "Required for this composition. It will be graded and protected behind the headline.";
+    assetField.append(assetLabel, assetInput, assetHint);
+    controls.append(label, select, description, assetField);
+    card.append(copy, controls);
+    studioScenes.append(card);
+    select.addEventListener("change", () => syncSceneAsset(card));
+    syncSceneAsset(card);
+  }
 }
 
 function renderResult(job) {
@@ -98,6 +204,8 @@ function renderResult(job) {
     ["Frame", `${job.output.width}×${job.output.height}`],
     ["Scenes", String(job.output.scenes)],
     ["Lint score", `${job.output.lint_score}/100`],
+    ["Direction", job.output.selection_mode === "wildcard" ? "Deterministic wildcard" : "Studio choice"],
+    ["Seed", String(job.output.selection_seed)],
   ];
   if (job.output.warning_count) {
     rows.push(["Quality notes", `${job.output.warning_count} · see report`]);
@@ -135,9 +243,11 @@ function renderJob(job) {
   progress.value = job.progress;
   progress.textContent = `${job.progress}%`;
   setStepper(job.status, job.progress);
-  statusSection.setAttribute("aria-busy", String(!new Set(["complete", "failed"]).has(job.status)));
+  statusSection.setAttribute("aria-busy", String(!terminalStatuses.has(job.status)));
   if (job.error) showError(jobError, `${job.step}: ${job.error}`);
   else clearError(jobError);
+  if (job.status === "review") renderStudioReview(job);
+  else studioReview.hidden = true;
   if (job.status === "complete") renderResult(job);
   else result.hidden = true;
 }
@@ -149,7 +259,7 @@ async function pollJob(url) {
     const job = await response.json();
     if (!response.ok) throw new Error(job.error || "The render status could not be read.");
     renderJob(job);
-    if (!new Set(["complete", "failed"]).has(job.status)) {
+    if (!terminalStatuses.has(job.status)) {
       pollTimer = window.setTimeout(() => pollJob(job.status_url), 750);
     } else {
       submitButton.disabled = false;
@@ -164,6 +274,13 @@ fileInput.addEventListener("change", () => {
   clearError(formError);
   renderFiles();
 });
+
+for (const mode of document.querySelectorAll('input[name="composition_mode"]')) {
+  mode.addEventListener("change", () => {
+    const studio = form.elements.composition_mode.value === "studio";
+    submitButton.querySelector("span").textContent = studio ? "Build scene plan" : "Render wildcard cut";
+  });
+}
 
 for (const eventName of ["dragenter", "dragover"]) {
   dropzone.addEventListener(eventName, (event) => {
@@ -215,7 +332,40 @@ form.addEventListener("submit", async (event) => {
     showError(formError, error.message);
     submitButton.disabled = false;
   } finally {
-    submitButton.querySelector("span").textContent = "Compile my video";
+    const studio = form.elements.composition_mode.value === "studio";
+    submitButton.querySelector("span").textContent = studio ? "Build scene plan" : "Render wildcard cut";
+  }
+});
+
+studioReviewForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  clearError(studioError);
+  for (const card of studioScenes.querySelectorAll(".studio-scene")) {
+    const option = selectedChoice(card.querySelector("select"));
+    const input = card.querySelector('.asset-field input[type="file"]');
+    if (option.dataset.requiresAsset === "true" && !input.files.length) {
+      showError(studioError, `${input.previousElementSibling.textContent}: add a PNG, JPG, or WebP before starting the render.`);
+      input.focus();
+      return;
+    }
+  }
+  studioRenderButton.disabled = true;
+  studioRenderButton.querySelector("span").textContent = "Locking cut…";
+  try {
+    const response = await fetch(studioReviewForm.action, {
+      method: "POST",
+      headers: { Accept: "application/json" },
+      body: new FormData(studioReviewForm),
+    });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error || "The Studio choices could not be applied.");
+    renderJob(payload);
+    pollJob(payload.status_url);
+  } catch (error) {
+    showError(studioError, error.message);
+  } finally {
+    studioRenderButton.disabled = false;
+    studioRenderButton.querySelector("span").textContent = "Render approved cut";
   }
 });
 

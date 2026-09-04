@@ -28,10 +28,13 @@ def default_grammar_dir() -> Path:
 
 
 def default_template_path() -> Path:
+    packaged = Path(__file__).resolve().parent / "data" / "templates" / "player.html.j2"
+    if packaged.exists():
+        return packaged
     repo_candidate = package_root() / "templates" / "player.html.j2"
     if repo_candidate.exists():
         return repo_candidate
-    return Path(__file__).resolve().parent / "data" / "templates" / "player.html.j2"
+    return packaged
 
 
 def load_yaml(path: str | Path) -> dict[str, Any]:

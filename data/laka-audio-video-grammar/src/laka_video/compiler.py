@@ -19,6 +19,7 @@ from .report import decision_report
 from .segmenter import build_audio_only_scenes, cues_to_units, units_to_scenes
 from .selector import TemplateSelector
 from .srt import parse_srt
+from .studio import load_studio_library
 from .text_rules import TextRuleEngine
 from .utils import (
     deep_merge,
@@ -125,6 +126,7 @@ def compile_project(project_path: str | Path, grammar_dir: str | Path | None = N
     defaults = load_yaml(grammar / "defaults.yml")
     lexicon = load_yaml(grammar / "lexicon.yml")
     template_library = load_yaml(grammar / "templates.yml")
+    studio_library = load_studio_library(grammar)
     motion_library = load_yaml(grammar / "motion.yml")
 
     timing_cfg = deep_merge(defaults.get("timing", {}), project_doc.get("rules", {}))
@@ -187,10 +189,11 @@ def compile_project(project_path: str | Path, grammar_dir: str | Path | None = N
     override_doc = _load_structured(overrides_path)
     data_doc = _load_structured(data_path)
     text_engine = TextRuleEngine(lexicon)
-    selector = TemplateSelector(template_library, defaults_runtime, brand)
+    selector = TemplateSelector(template_library, defaults_runtime, brand, studio_library)
     history: list[dict[str, Any]] = []
     compiled_scenes: list[dict[str, Any]] = []
     seed = project_doc.get("project", {}).get("seed", 0)
+    composition_mode = str((project_doc.get("composition") or {}).get("mode", "studio"))
 
     for draft in drafts:
         sidecar_override = _scene_override(draft, override_doc)
@@ -224,7 +227,7 @@ def compile_project(project_path: str | Path, grammar_dir: str | Path | None = N
             history=history,
             seed=seed,
             overrides=overrides,
-            context={"data_bound": data_bound},
+            context={"data_bound": data_bound, "selection_mode": composition_mode},
         )
         template_spec = selector.by_id.get(selected.template, {})
         motion = compile_motion(
@@ -290,6 +293,14 @@ def compile_project(project_path: str | Path, grammar_dir: str | Path | None = N
             "fps": fps,
             "aspect": aspect,
             "captions": output_cfg.get("captions", "karaoke"),
+            "selection_mode": composition_mode,
+        },
+        "studio": {
+            "library": studio_library.get("name", "LAVC Studio Library"),
+            "library_version": studio_library.get("version", "1.0.0"),
+            "principle": studio_library.get("principle", ""),
+            "mode": composition_mode,
+            "seed": seed,
         },
         "content": content,
         "brand": brand,

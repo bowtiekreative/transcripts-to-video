@@ -88,7 +88,12 @@ laka-video doctor
 laka-video serve
 ```
 
-Open `http://127.0.0.1:8765`, then drop one narration file and, optionally, a matching SRT. The app queues the work locally, exposes compile/render progress, previews the completed MP4, and provides the decision report. Uploaded source files and job outputs are stored under `.laka/jobs/` by default; override that location with `--job-root`.
+Open `http://127.0.0.1:8765`, then choose a composition direction and drop one narration file plus an optional matching SRT:
+
+- **Choose in Studio** compiles first, pauses on a scene-by-scene review, and offers only grammar-valid alternatives. Selecting **Image + headline** creates a required upload for that scene; rendering cannot start until every selected image slot is filled.
+- **Deterministic wildcard** renders automatically by choosing within the top truth-safe candidate band. Its stored seed is included in the decision report, so the same input and seed reproduce the cut.
+
+The app exposes compile/render progress, previews the completed MP4, and provides the decision report. Uploaded source files and job outputs are stored under `.laka/jobs/` by default; override that location with `--job-root`.
 
 For a container deployment, build the included `Dockerfile`, expose port `8765`, and mount persistent storage at `/data/jobs`. Set `TRANSCRIBE_USERNAME` and `TRANSCRIBE_PASSWORD` together to protect the upload and render surface with HTTP Basic authentication. `/healthz` remains public for container health checks. Run exactly one Gunicorn worker because the job queue is process-local.
 
@@ -154,8 +159,10 @@ A sidecar override file can be used instead when the transcript must remain clea
 - `docs/10-extension-guide.md` — how to add templates and rules
 - `grammar/laka-video.ebnf` — formal grammar
 - `grammar/templates.yml` — infographic capabilities and compatibility weights
+- `grammar/studio-library.yml` — Studio modes, labels, bounded wildcard policy, and required-image contract
 - `grammar/motion.yml` — motion families expressed with LAKA variables
 - `TEMPLATE.md` — canonical SRT-to-film regeneration contract
+- `src/laka_video/data/templates/studio-renderer.js` — motion-first renderer ported from the LAVC Variant Studio
 - `src/laka_video/` — deterministic compiler, linter, browser renderer, MP4 encoder, project scaffold, and decision reporter
 - `examples/audio-only/` — DSP-only operation with no transcript
 - `examples/ryan-reintroduction/` — the supplied reintroduction audio generalized through the grammar

@@ -29,6 +29,7 @@ def init_project(
     mode: str = "auto",
     aspect: str = "9:16",
     seed: int | str = 33,
+    composition_mode: str = "studio",
     force: bool = False,
 ) -> dict[str, Path]:
     dest = Path(destination).expanduser().resolve()
@@ -106,6 +107,7 @@ def init_project(
             "data": "data.yml",
         },
         "content": {"speaker": "", "destination": ""},
+        "composition": {"mode": composition_mode, "library": "studio-library.yml"},
         "brand": {"preset": "brand.yml"},
         "output": {
             "directory": "build",

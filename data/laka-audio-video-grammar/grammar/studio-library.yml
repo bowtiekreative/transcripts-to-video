@@ -1,0 +1,52 @@
+version: 1.0.0
+name: LAVC Studio Library
+source:
+  - studio/LAVC Variant Studio.dc.html
+  - studio/LAVC Element Library.dc.html
+  - studio/lavc-engine.js
+  - studio/lavc-elements.js
+principle: Map the relationship to the smallest visual that preserves its truth.
+modes:
+  studio:
+    label: Choose in Studio
+    description: Review the grammar's valid scene designs, change any scene, and supply required media before rendering.
+    candidate_limit: 5
+    score_band: 16
+  wildcard:
+    label: Deterministic wildcard
+    description: Pick from the top truth-safe candidates with a stored seed; the same source and seed reproduce the same cut.
+    candidate_limit: 3
+    score_band: 8
+image_slide:
+  id: image_slide
+  label: Image + headline
+  description: A graded full-frame image with a protected editorial text rail.
+  template: title_card
+  layout: image_overlay
+  required_asset: true
+  accepted_extensions: [.png, .jpg, .jpeg, .webp]
+  allowed_relations: [identity, emphasis, question, warning, cta, definition]
+template_labels:
+  title_card: Headline rail
+  quote_focus: Quote focus
+  big_number: Big number
+  list_stack: List stack
+  steps: Process steps
+  timeline: Timeline
+  before_after: Before / after
+  comparison_split: Comparison
+  transformation_arrow: Transformation
+  cause_effect: Cause / effect
+  problem_solution: Problem / response
+  definition_card: Definition
+  hierarchy_tree: Hierarchy
+  network: Network
+  cycle: Cycle
+  condition_cards: If / then
+  question_card: Question
+  cta_card: Call to action
+  warning_card: Warning
+  audio_wave: Audio energy
+  funnel: Funnel
+  bar_chart: Bar chart
+  matrix: Matrix

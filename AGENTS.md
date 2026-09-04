@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-The working Python package is in `data/laka-audio-video-grammar/`. Production code lives under `src/laka_video/`; keep compiler stages focused (for example, parsing in `srt.py`, deterministic selection in `selector.py`, and MP4 output in `render_mp4.py`). Canonical grammar data is stored in `grammar/` and packaged copies live in `src/laka_video/data/grammar/`. Update both locations when changing shipped grammar rules. Browser-rendering templates are under `templates/` and `src/laka_video/data/templates/`.
+The working Python package is in `data/laka-audio-video-grammar/`. Production code lives under `src/laka_video/`; keep compiler stages focused (for example, parsing in `srt.py`, deterministic selection in `selector.py`, and MP4 output in `render_mp4.py`). Canonical grammar data is stored in `grammar/` and packaged copies live in `src/laka_video/data/grammar/`. Update both locations when changing shipped grammar rules. `grammar/studio-library.yml` owns Studio review, wildcard, and image-slot policy. The shipped browser renderer is under `src/laka_video/data/templates/`; `templates/` is retained as a legacy source copy.
 
 Tests are in `tests/`, documentation in `docs/`, and runnable fixtures in `examples/`. Generated `build/` directories are outputs, not source files.
 

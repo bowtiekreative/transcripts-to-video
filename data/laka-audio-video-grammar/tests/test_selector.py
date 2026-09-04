@@ -10,8 +10,9 @@ def fixtures():
     defaults = load_yaml(root / "grammar" / "defaults.yml")
     brand = load_yaml(root / "grammar" / "brand.example.yml")
     templates = load_yaml(root / "grammar" / "templates.yml")
+    studio = load_yaml(root / "grammar" / "studio-library.yml")
     engine = TextRuleEngine(load_yaml(root / "grammar" / "lexicon.yml"))
-    return engine, TemplateSelector(templates, defaults, brand)
+    return engine, TemplateSelector(templates, defaults, brand, studio)
 
 
 def choose(text: str):
@@ -34,3 +35,22 @@ def test_selector_is_repeatable():
 def test_condition_selects_condition_cards():
     selected = choose("If a chart has no values, the system must reject the chart.")
     assert selected.template == "condition_cards"
+
+
+def test_wildcard_is_seeded_and_stays_inside_valid_candidate_pool():
+    engine, selector = fixtures()
+    analysis = engine.classify("We turn attention into action.")
+    scene = {
+        "id": "s1", "start": 0.0, "end": 7.0, "words_per_second": 2.0,
+        "audio_features": {"mean_energy": 0.5}, "continuity_key": "test",
+    }
+    first, candidates = selector.select(
+        analysis, scene, {"aspect": "16:9"}, [], 812, context={"selection_mode": "wildcard"}
+    )
+    repeated, _ = selector.select(
+        analysis, scene, {"aspect": "16:9"}, [], 812, context={"selection_mode": "wildcard"}
+    )
+
+    assert (first.template, first.layout) == (repeated.template, repeated.layout)
+    assert (first.template, first.layout) in {(candidate.template, candidate.layout) for candidate in candidates[:3]}
+    assert any("wildcard" in reason for reason in first.reasons)

@@ -59,6 +59,9 @@ def decision_report(storyboard: dict[str, Any]) -> str:
         f"- Aspect: `{_escape(comp.get('aspect', ''))}`",
         f"- Frame rate: `{_escape(comp.get('fps', ''))}`",
         f"- Scenes: `{len(scenes)}`",
+        f"- Studio library: `{_escape(storyboard.get('studio', {}).get('library_version', ''))}`",
+        f"- Selection mode: `{_escape(storyboard.get('studio', {}).get('mode', comp.get('selection_mode', '')))}`",
+        f"- Selection seed: `{_escape(storyboard.get('studio', {}).get('seed', ''))}`",
         "",
         "## Scene map",
         "",
@@ -92,6 +95,11 @@ def decision_report(storyboard: dict[str, Any]) -> str:
             f"at score `{float(selected.get('score', 0)):.2f}`.",
             "",
         ])
+        if scene.get("asset"):
+            lines.extend([
+                f"**Image slot:** filled from `{_escape(scene.get('overrides', {}).get('asset_source', scene.get('asset')))}`.",
+                "",
+            ])
         if candidates:
             lines.extend([
                 "Top candidates:",

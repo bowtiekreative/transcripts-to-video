@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
+import yaml
 from flask import Flask, abort, jsonify, redirect, render_template, request, send_file, url_for
 from werkzeug.datastructures import FileStorage
 from werkzeug.exceptions import RequestEntityTooLarge
@@ -17,6 +18,7 @@ from werkzeug.exceptions import RequestEntityTooLarge
 from .compiler import compile_project
 from .render_mp4 import render_mp4
 from .scaffold import init_project
+from .studio import allowed_review_choices, build_studio_review, load_studio_library
 
 
 NARRATION_EXTENSIONS = {
@@ -26,6 +28,8 @@ NARRATION_EXTENSIONS = {
 TRANSCRIPT_EXTENSIONS = {".srt"}
 ASPECTS = {"9:16", "16:9", "1:1", "4:5"}
 QUALITIES = {"draft", "standard", "high"}
+COMPOSITION_MODES = {"studio", "wildcard"}
+IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
 
 
 class UploadError(ValueError):
@@ -50,6 +54,19 @@ def _lint_messages(report: dict[str, Any], severities: set[str]) -> list[str]:
         code = f"{issue['code']}: " if issue.get("code") else ""
         messages.append(f"{location}{code}{issue.get('message', 'Quality check issue')}")
     return messages
+
+
+def _valid_image_header(upload: FileStorage, suffix: str) -> bool:
+    position = upload.stream.tell()
+    header = upload.stream.read(12)
+    upload.stream.seek(position)
+    if suffix == ".png":
+        return header.startswith(b"\x89PNG\r\n\x1a\n")
+    if suffix in {".jpg", ".jpeg"}:
+        return header.startswith(b"\xff\xd8\xff")
+    if suffix == ".webp":
+        return header.startswith(b"RIFF") and header[8:12] == b"WEBP"
+    return False
 
 
 class JobManager:
@@ -81,12 +98,15 @@ class JobManager:
         files: Iterable[FileStorage],
         aspect: str = "16:9",
         quality: str = "standard",
+        composition_mode: str = "wildcard",
     ) -> dict[str, Any]:
         narration, transcript = self._classify(files)
         if aspect not in ASPECTS:
             raise UploadError("Format: choose 9:16, 16:9, 1:1, or 4:5.")
         if quality not in QUALITIES:
             raise UploadError("Quality: choose draft, standard, or high.")
+        if composition_mode not in COMPOSITION_MODES:
+            raise UploadError("Composition: choose Studio review or Deterministic wildcard.")
 
         job_id = secrets.token_hex(6)
         job_dir = self.root / job_id
@@ -114,9 +134,12 @@ class JobManager:
             "transcript_name": transcript.filename if transcript else None,
             "aspect": aspect,
             "quality": quality,
+            "composition_mode": composition_mode,
+            "selection_seed": secrets.randbelow(2_147_483_647) if composition_mode == "wildcard" else 33,
             "mode": "transcript" if transcript else "audio",
             "error": None,
             "warnings": [],
+            "review": None,
             "output": None,
             "_narration": narration_path,
             "_transcript": transcript_path,
@@ -163,6 +186,8 @@ class JobManager:
                 title=_safe_title(job["narration_name"]),
                 mode=job["mode"],
                 aspect=job["aspect"],
+                seed=job["selection_seed"],
+                composition_mode=job["composition_mode"],
             )
 
             self._update(
@@ -172,76 +197,196 @@ class JobManager:
                 progress=14,
                 message="Classifying meaning, selecting LAKA compositions, and building the EventMath timeline.",
             )
-            paths = compile_project(job["_project_dir"] / "project.yml")
-            lint = json.loads(paths["lint"].read_text(encoding="utf-8"))
-            lint_status = lint.get("status")
-            if lint_status not in {"pass", "warning"}:
-                blocking = _lint_messages(lint, {"FATAL", "ERROR"})
-                detail = "; ".join(blocking[:3]) or f"quality check returned {lint_status or 'an unknown result'}"
-                raise RuntimeError(f"Storyboard cannot render: {detail}.")
-            warnings = _lint_messages(lint, {"WARNING"})
-            self._update(job_id, warnings=warnings)
-
-            self._update(
-                job_id,
-                status="rendering",
-                step="Rendering video",
-                progress=28,
-                message="Drawing deterministic frames and encoding the MP4 locally.",
-            )
-
-            def on_progress(done: int, total: int) -> None:
-                percent = 28 + int((done / max(total, 1)) * 68)
-                self._update(job_id, progress=min(96, percent))
-
-            output = render_mp4(
-                paths["preview"],
-                paths["storyboard"],
-                quality=job["quality"],
-                progress=on_progress,
-            )
-            story = json.loads(paths["storyboard"].read_text(encoding="utf-8"))
-            composition = story["composition"]
-            render_scale = 1.0
-            rendered_width = max(2, int(round(composition["width"] * render_scale / 2) * 2))
-            rendered_height = max(2, int(round(composition["height"] * render_scale / 2) * 2))
-            warning_count = len(warnings)
-            completion_message = (
-                f"Video finished with {warning_count} non-blocking quality note{'s' if warning_count != 1 else ''}. "
-                "See the decision report for details."
-                if warning_count
-                else "The deterministic render passed its storyboard checks."
-            )
-            self._update(
-                job_id,
-                status="complete",
-                step="Video ready",
-                progress=100,
-                message=completion_message,
-                output={
-                    "filename": output.name,
-                    "duration": composition["duration"],
-                    "width": rendered_width,
-                    "height": rendered_height,
-                    "scenes": len(story["scenes"]),
-                    "size_bytes": output.stat().st_size,
-                    "lint_score": story["lint_summary"]["score"],
-                    "lint_status": lint_status,
-                    "warning_count": warning_count,
-                },
-                _video=output,
-                _report=paths["decisions"],
-            )
+            paths, lint_status, warnings = self._compile(job_id, job["_project_dir"])
+            if job["composition_mode"] == "studio":
+                story = json.loads(paths["storyboard"].read_text(encoding="utf-8"))
+                review = build_studio_review(story, load_studio_library())
+                self._update(
+                    job_id,
+                    status="review",
+                    step="Choose scene designs",
+                    progress=28,
+                    message=(
+                        f"The Studio mapped {len(review['scenes'])} scenes. Choose a valid composition for each; "
+                        "image scenes must have an image before rendering can start."
+                    ),
+                    warnings=warnings,
+                    review=review,
+                    _paths=paths,
+                )
+                return
+            self._render(job_id, paths, lint_status, warnings)
         except Exception as exc:  # The worker must always publish a terminal state.
-            project_dir = str(job["_project_dir"])
-            message = str(exc).replace(project_dir, "project").strip() or exc.__class__.__name__
+            self._fail(job_id, job, exc)
+
+    def _compile(self, job_id: str, project_dir: Path) -> tuple[dict[str, Path], str, list[str]]:
+        paths = compile_project(project_dir / "project.yml")
+        lint = json.loads(paths["lint"].read_text(encoding="utf-8"))
+        lint_status = str(lint.get("status") or "unknown")
+        if lint_status not in {"pass", "warning"}:
+            blocking = _lint_messages(lint, {"FATAL", "ERROR"})
+            detail = "; ".join(blocking[:3]) or f"quality check returned {lint_status}"
+            raise RuntimeError(f"Storyboard cannot render: {detail}.")
+        warnings = _lint_messages(lint, {"WARNING"})
+        self._update(job_id, warnings=warnings)
+        return paths, lint_status, warnings
+
+    def _render(
+        self,
+        job_id: str,
+        paths: dict[str, Path],
+        lint_status: str,
+        warnings: list[str],
+    ) -> None:
+        self._update(
+            job_id,
+            status="rendering",
+            step="Rendering video",
+            progress=36,
+            message="Drawing the approved Studio frames and encoding the MP4 locally.",
+            review=None,
+        )
+
+        def on_progress(done: int, total: int) -> None:
+            percent = 36 + int((done / max(total, 1)) * 60)
+            self._update(job_id, progress=min(96, percent))
+
+        job = self._get_private(job_id)
+        output = render_mp4(
+            paths["preview"],
+            paths["storyboard"],
+            quality=job["quality"],
+            progress=on_progress,
+        )
+        story = json.loads(paths["storyboard"].read_text(encoding="utf-8"))
+        composition = story["composition"]
+        rendered_width = max(2, int(round(composition["width"] / 2) * 2))
+        rendered_height = max(2, int(round(composition["height"] / 2) * 2))
+        warning_count = len(warnings)
+        completion_message = (
+            f"Video finished with {warning_count} non-blocking quality note{'s' if warning_count != 1 else ''}. "
+            "See the decision report for details."
+            if warning_count
+            else "The deterministic render passed its storyboard checks."
+        )
+        self._update(
+            job_id,
+            status="complete",
+            step="Video ready",
+            progress=100,
+            message=completion_message,
+            output={
+                "filename": output.name,
+                "duration": composition["duration"],
+                "width": rendered_width,
+                "height": rendered_height,
+                "scenes": len(story["scenes"]),
+                "size_bytes": output.stat().st_size,
+                "lint_score": story["lint_summary"]["score"],
+                "lint_status": lint_status,
+                "warning_count": warning_count,
+                "selection_mode": composition.get("selection_mode", "studio"),
+                "selection_seed": story.get("studio", {}).get("seed"),
+            },
+            _video=output,
+            _report=paths["decisions"],
+        )
+
+    def submit_review(
+        self,
+        job_id: str,
+        selections: dict[str, str],
+        assets: dict[str, FileStorage],
+    ) -> None:
+        job = self._get_private(job_id)
+        if job.get("status") != "review" or not job.get("review"):
+            raise UploadError("Studio review: this job is not waiting for scene choices.")
+        allowed = allowed_review_choices(job["review"])
+        plan: list[tuple[str, dict[str, Any], FileStorage | None]] = []
+        for scene in job["review"].get("scenes", []):
+            scene_id = str(scene["id"])
+            selected_key = selections.get(scene_id) or str(scene["selected"])
+            choice = allowed.get(scene_id, {}).get(selected_key)
+            if choice is None:
+                raise UploadError(f"Scene {scene['index']}: choose one of the Studio compositions shown.")
+            asset = assets.get(scene_id)
+            if choice.get("requires_asset"):
+                if asset is None or not asset.filename:
+                    raise UploadError(
+                        f"Image for scene {scene['index']}: add a PNG, JPG, or WebP before starting the render."
+                    )
+                suffix = Path(asset.filename).suffix.lower()
+                if suffix not in IMAGE_EXTENSIONS:
+                    raise UploadError(
+                        f"Image for scene {scene['index']}: {asset.filename} is not supported; add a PNG, JPG, or WebP."
+                    )
+                if not _valid_image_header(asset, suffix):
+                    raise UploadError(
+                        f"Image for scene {scene['index']}: {asset.filename} is not a valid {suffix.lstrip('.').upper()} image."
+                    )
+            plan.append((scene_id, choice, asset))
+
+        build_assets = job["_project_dir"] / "build" / "assets"
+        build_assets.mkdir(parents=True, exist_ok=True)
+        overrides: list[dict[str, Any]] = []
+        for scene_id, choice, asset in plan:
+            item: dict[str, Any] = {
+                "scene": scene_id,
+                "infographic": choice["template"],
+                "layout": choice["layout"],
+            }
+            if choice.get("requires_asset") and asset is not None:
+                suffix = Path(asset.filename or "").suffix.lower()
+                asset_name = f"{scene_id}{suffix}"
+                asset.save(build_assets / asset_name)
+                item.update(
+                    {
+                        "asset": f"assets/{asset_name}",
+                        "asset_alt": f"Image supporting {scene_id}",
+                        "asset_source": Path(asset.filename or asset_name).name,
+                    }
+                )
+            overrides.append(item)
+
+        (job["_project_dir"] / "overrides.yml").write_text(
+            yaml.safe_dump({"overrides": overrides}, sort_keys=False, allow_unicode=True),
+            encoding="utf-8",
+        )
+        self._update(
+            job_id,
+            status="queued",
+            step="Studio cut approved",
+            progress=31,
+            message="All selected image slots are filled. Recompiling the approved cut.",
+            review=None,
+        )
+        self._executor.submit(self._resume_render, job_id)
+
+    def _resume_render(self, job_id: str) -> None:
+        job = self._get_private(job_id)
+        try:
             self._update(
                 job_id,
-                status="failed",
-                step="Render stopped",
-                message="The compiler could not finish this file.",
-                error=message[:500],
+                status="compiling",
+                step="Locking Studio choices",
+                progress=33,
+                message="Applying the approved scene designs and checking the final storyboard.",
             )
+            paths, lint_status, warnings = self._compile(job_id, job["_project_dir"])
+            self._render(job_id, paths, lint_status, warnings)
+        except Exception as exc:
+            self._fail(job_id, job, exc)
+
+    def _fail(self, job_id: str, job: dict[str, Any], exc: Exception) -> None:
+        project_dir = str(job["_project_dir"])
+        message = str(exc).replace(project_dir, "project").strip() or exc.__class__.__name__
+        self._update(
+            job_id,
+            status="failed",
+            step="Render stopped",
+            message="The compiler could not finish this file.",
+            error=message[:500],
+        )
 
     def artifact(self, job_id: str, key: str) -> Path | None:
         with self._lock:
@@ -253,6 +398,8 @@ class JobManager:
 def _serialize_job(job: dict[str, Any]) -> dict[str, Any]:
     result = dict(job)
     result["status_url"] = url_for("job_status", job_id=job["id"])
+    if job["status"] == "review":
+        result["render_url"] = url_for("job_render", job_id=job["id"])
     if job["status"] == "complete":
         result["video_url"] = url_for("job_video", job_id=job["id"])
         result["download_url"] = url_for("job_video", job_id=job["id"], download=1)
@@ -329,6 +476,7 @@ def create_app(
                 request.files.getlist("files"),
                 aspect=request.form.get("aspect", "16:9"),
                 quality=request.form.get("quality", "standard"),
+                composition_mode=request.form.get("composition_mode", "wildcard"),
             )
         except UploadError as exc:
             if request.accept_mimetypes.best == "application/json":
@@ -345,6 +493,25 @@ def create_app(
         if job is None:
             return jsonify({"error": "Render job not found."}), 404
         return jsonify(_serialize_job(job))
+
+    @app.post("/jobs/<job_id>/render")
+    def job_render(job_id: str) -> Any:
+        job = job_manager.snapshot(job_id)
+        if job is None:
+            return jsonify({"error": "Render job not found."}), 404
+        scene_ids = [str(scene.get("id")) for scene in (job.get("review") or {}).get("scenes", [])]
+        selections = {scene_id: request.form.get(f"choice_{scene_id}", "") for scene_id in scene_ids}
+        assets = {
+            scene_id: request.files[f"asset_{scene_id}"]
+            for scene_id in scene_ids
+            if request.files.get(f"asset_{scene_id}")
+        }
+        try:
+            job_manager.submit_review(job_id, selections, assets)
+        except UploadError as exc:
+            return jsonify({"error": str(exc)}), 400
+        updated = job_manager.snapshot(job_id)
+        return jsonify(_serialize_job(updated or job)), 202
 
     @app.get("/jobs/<job_id>/video")
     def job_video(job_id: str) -> Any:

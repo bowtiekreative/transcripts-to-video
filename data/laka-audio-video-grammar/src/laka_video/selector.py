@@ -160,11 +160,18 @@ def _choose_layout(layouts: list[str], aspect: str) -> str:
 
 
 class TemplateSelector:
-    def __init__(self, template_library: dict[str, Any], defaults: dict[str, Any], brand: dict[str, Any]):
+    def __init__(
+        self,
+        template_library: dict[str, Any],
+        defaults: dict[str, Any],
+        brand: dict[str, Any],
+        studio_library: dict[str, Any] | None = None,
+    ):
         self.templates = template_library.get("templates", [])
         self.by_id = {t["id"]: t for t in self.templates}
         self.defaults = defaults
         self.brand = brand
+        self.studio_library = studio_library or {}
 
     def select(
         self,
@@ -327,4 +334,16 @@ class TemplateSelector:
             )
         )
         selected = candidates[0]
+        if str(context.get("selection_mode", "studio")) == "wildcard":
+            wildcard = (self.studio_library.get("modes") or {}).get("wildcard") or {}
+            limit = max(1, int(wildcard.get("candidate_limit", 3)))
+            band = max(0.0, float(wildcard.get("score_band", 8)))
+            pool = [candidate for candidate in candidates if selected.score - candidate.score <= band][:limit]
+            if pool:
+                choice_hash = stable_hash(seed, scene.get("id"), analysis.get("primary_relation"), "wildcard")
+                selected = copy.deepcopy(pool[int(choice_hash[:16], 16) % len(pool)])
+                selected.reasons.append(
+                    f"deterministic wildcard choice from {len(pool)} top truth-safe candidate"
+                    f"{'s' if len(pool) != 1 else ''}"
+                )
         return selected, candidates

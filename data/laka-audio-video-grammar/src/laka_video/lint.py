@@ -73,6 +73,15 @@ def lint_storyboard(storyboard: dict[str, Any], defaults: dict[str, Any], templa
                 issues.append(_issue("ERROR", "data.required", f"Template {template_id} requires explicit source data.", sid))
 
         payload = scene.get("payload", {})
+        if scene.get("layout") == "image_overlay" and not (scene.get("asset") or payload.get("asset")):
+            issues.append(
+                _issue(
+                    "ERROR",
+                    "asset.required",
+                    "Image + headline requires a filled image slot before rendering.",
+                    sid,
+                )
+            )
         headline_words = word_count(str(payload.get("headline", "")))
         template_fields = {
             "title_card": ["supporting", "label"], "quote_focus": ["label"],

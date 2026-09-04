@@ -44,6 +44,44 @@
         },
         "aspect": {
           "type": "string"
+        },
+        "selection_mode": {
+          "enum": [
+            "studio",
+            "wildcard"
+          ]
+        }
+      }
+    },
+    "studio": {
+      "type": "object",
+      "required": [
+        "library",
+        "library_version",
+        "mode",
+        "seed"
+      ],
+      "properties": {
+        "library": {
+          "type": "string"
+        },
+        "library_version": {
+          "type": "string"
+        },
+        "principle": {
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "studio",
+            "wildcard"
+          ]
+        },
+        "seed": {
+          "type": [
+            "integer",
+            "string"
+          ]
         }
       }
     },
