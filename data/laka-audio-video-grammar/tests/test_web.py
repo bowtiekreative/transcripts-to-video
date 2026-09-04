@@ -1,3 +1,4 @@
+import base64
 import io
 from pathlib import Path
 
@@ -60,3 +61,29 @@ def test_audio_upload_creates_a_queued_local_job(tmp_path: Path):
     job = manager.snapshot(response.json["id"])
     assert job is not None
     assert job["narration_name"] == "voice.wav"
+
+
+def test_health_check_bypasses_configured_authentication(tmp_path: Path, monkeypatch):
+    monkeypatch.setenv("TRANSCRIBE_USERNAME", "operator")
+    monkeypatch.setenv("TRANSCRIBE_PASSWORD", "secret")
+    app = create_app(manager=QueuedManager(tmp_path))
+
+    response = app.test_client().get("/healthz")
+
+    assert response.status_code == 200
+    assert response.json == {"status": "ok"}
+
+
+def test_configured_authentication_protects_the_application(tmp_path: Path, monkeypatch):
+    monkeypatch.setenv("TRANSCRIBE_USERNAME", "operator")
+    monkeypatch.setenv("TRANSCRIBE_PASSWORD", "secret")
+    app = create_app(manager=QueuedManager(tmp_path))
+    client = app.test_client()
+
+    denied = client.get("/")
+    token = base64.b64encode(b"operator:secret").decode("ascii")
+    allowed = client.get("/", headers={"Authorization": f"Basic {token}"})
+
+    assert denied.status_code == 401
+    assert denied.headers["WWW-Authenticate"] == 'Basic realm="LAKA Transcribe"'
+    assert allowed.status_code == 200

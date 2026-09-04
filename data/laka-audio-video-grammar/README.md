@@ -90,6 +90,8 @@ laka-video serve
 
 Open `http://127.0.0.1:8765`, then drop one narration file and, optionally, a matching SRT. The app queues the work locally, exposes compile/render progress, previews the completed MP4, and provides the decision report. Uploaded source files and job outputs are stored under `.laka/jobs/` by default; override that location with `--job-root`.
 
+For a container deployment, build the included `Dockerfile`, expose port `8765`, and mount persistent storage at `/data/jobs`. Set `TRANSCRIBE_USERNAME` and `TRANSCRIBE_PASSWORD` together to protect the upload and render surface with HTTP Basic authentication. `/healthz` remains public for container health checks. Run exactly one Gunicorn worker because the job queue is process-local.
+
 Compile the audio-only example without a transcript:
 
 ```bash

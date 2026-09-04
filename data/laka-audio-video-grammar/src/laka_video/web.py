@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 import secrets
 import threading
 from concurrent.futures import ThreadPoolExecutor
@@ -240,16 +241,43 @@ def create_app(
     asset_dir = Path(__file__).resolve().parent / "data" / "web"
     app = Flask(__name__, template_folder=str(asset_dir), static_folder=str(asset_dir), static_url_path="/assets")
     app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 * 1024 * 1024
-    resolved_root = Path(job_root) if job_root else Path.cwd() / ".laka" / "jobs"
+    configured_root = os.environ.get("LAVC_JOB_ROOT")
+    resolved_root = Path(job_root) if job_root else Path(configured_root) if configured_root else Path.cwd() / ".laka" / "jobs"
     job_manager = manager or JobManager(resolved_root)
     app.extensions["lavc_job_manager"] = job_manager
 
+    auth_username = os.environ.get("TRANSCRIBE_USERNAME")
+    auth_password = os.environ.get("TRANSCRIBE_PASSWORD")
+    if bool(auth_username) != bool(auth_password):
+        raise RuntimeError("TRANSCRIBE_USERNAME and TRANSCRIBE_PASSWORD must be configured together.")
+
+    @app.before_request
+    def require_basic_auth() -> Any:
+        if request.endpoint == "healthz" or not auth_username:
+            return None
+        supplied = request.authorization
+        username_ok = secrets.compare_digest(supplied.username or "", auth_username) if supplied else False
+        password_ok = secrets.compare_digest(supplied.password or "", auth_password or "") if supplied else False
+        if username_ok and password_ok:
+            return None
+        return (
+            jsonify({"error": "Authentication required."}),
+            401,
+            {"WWW-Authenticate": 'Basic realm="LAKA Transcribe"', "Cache-Control": "no-store"},
+        )
+
     @app.after_request
     def no_store_api(response: Any) -> Any:
-        if request.path.startswith("/api/"):
+        if request.path.startswith("/api/") or request.path.startswith("/jobs"):
             response.headers["Cache-Control"] = "no-store"
         response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Referrer-Policy"] = "same-origin"
+        response.headers["X-Frame-Options"] = "DENY"
         return response
+
+    @app.get("/healthz")
+    def healthz() -> Any:
+        return jsonify({"status": "ok"})
 
     @app.errorhandler(RequestEntityTooLarge)
     def too_large(_: RequestEntityTooLarge) -> tuple[Any, int]:
