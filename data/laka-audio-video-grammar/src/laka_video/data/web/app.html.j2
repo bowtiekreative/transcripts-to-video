@@ -147,6 +147,9 @@
             <div><dt>Frame</dt><dd>{{ initial_job.output.width }}×{{ initial_job.output.height }}</dd></div>
             <div><dt>Scenes</dt><dd>{{ initial_job.output.scenes }}</dd></div>
             <div><dt>Lint score</dt><dd>{{ initial_job.output.lint_score }}/100</dd></div>
+            {% if initial_job.output.warning_count %}
+            <div><dt>Quality notes</dt><dd>{{ initial_job.output.warning_count }} · see report</dd></div>
+            {% endif %}
             {% endif %}
           </dl>
           {% if initial_job and initial_job.status == 'complete' %}

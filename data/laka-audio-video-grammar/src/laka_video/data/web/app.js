@@ -99,6 +99,9 @@ function renderResult(job) {
     ["Scenes", String(job.output.scenes)],
     ["Lint score", `${job.output.lint_score}/100`],
   ];
+  if (job.output.warning_count) {
+    rows.push(["Quality notes", `${job.output.warning_count} · see report`]);
+  }
   for (const [label, value] of rows) {
     const row = document.createElement("div");
     const term = document.createElement("dt");

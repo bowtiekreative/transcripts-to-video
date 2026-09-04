@@ -1,5 +1,6 @@
 import base64
 import io
+import json
 from pathlib import Path
 
 from laka_video.web import JobManager, create_app
@@ -102,3 +103,66 @@ def test_configured_authentication_protects_the_application(tmp_path: Path, monk
     assert denied.status_code == 401
     assert denied.headers["WWW-Authenticate"] == 'Basic realm="LAKA Transcribe"'
     assert allowed.status_code == 200
+
+
+def test_warning_quality_check_still_produces_video(tmp_path: Path, monkeypatch):
+    compiled = tmp_path / "compiled"
+    compiled.mkdir()
+    storyboard = compiled / "storyboard.json"
+    lint = compiled / "lint-report.json"
+    preview = compiled / "preview.html"
+    decisions = compiled / "decision-report.md"
+    video = compiled / "video.mp4"
+    storyboard.write_text(
+        json.dumps(
+            {
+                "composition": {"duration": 8.0, "width": 1920, "height": 1080},
+                "scenes": [{"id": "scene-001"}],
+                "lint_summary": {"score": 97.5},
+            }
+        ),
+        encoding="utf-8",
+    )
+    lint.write_text(
+        json.dumps(
+            {
+                "status": "warning",
+                "score": 97.5,
+                "issues": [
+                    {
+                        "severity": "WARNING",
+                        "code": "layout.text_density",
+                        "message": "Estimated visible load is 50 words.",
+                        "scene_id": "scene-001",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    preview.write_text("<html></html>", encoding="utf-8")
+    decisions.write_text("# Decision report", encoding="utf-8")
+    video.write_bytes(b"video fixture")
+
+    paths = {"storyboard": storyboard, "lint": lint, "preview": preview, "decisions": decisions}
+    monkeypatch.setattr("laka_video.web.init_project", lambda **_: None)
+    monkeypatch.setattr("laka_video.web.compile_project", lambda _: paths)
+    monkeypatch.setattr("laka_video.web.render_mp4", lambda *_args, **_kwargs: video)
+
+    manager = QueuedManager(tmp_path / "jobs")
+    response = create_app(manager=manager).test_client().post(
+        "/jobs",
+        data={"files": (io.BytesIO(b"audio fixture"), "voice.wav")},
+        headers={"Accept": "application/json"},
+    )
+    manager._run_job(response.json["id"])
+    job = manager.snapshot(response.json["id"])
+
+    assert job is not None
+    assert job["status"] == "complete"
+    assert job["output"]["lint_status"] == "warning"
+    assert job["output"]["warning_count"] == 1
+    assert job["warnings"] == [
+        "scene-001: layout.text_density: Estimated visible load is 50 words."
+    ]
+    assert "non-blocking quality note" in job["message"]

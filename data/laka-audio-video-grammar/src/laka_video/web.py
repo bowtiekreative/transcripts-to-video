@@ -41,6 +41,17 @@ def _safe_title(filename: str) -> str:
     return " ".join(words).strip()[:80] or "Untitled recording"
 
 
+def _lint_messages(report: dict[str, Any], severities: set[str]) -> list[str]:
+    messages: list[str] = []
+    for issue in report.get("issues", []):
+        if issue.get("severity") not in severities:
+            continue
+        location = f"{issue['scene_id']}: " if issue.get("scene_id") else ""
+        code = f"{issue['code']}: " if issue.get("code") else ""
+        messages.append(f"{location}{code}{issue.get('message', 'Quality check issue')}")
+    return messages
+
+
 class JobManager:
     def __init__(self, root: str | Path, max_workers: int = 1) -> None:
         self.root = Path(root).expanduser().resolve()
@@ -105,6 +116,7 @@ class JobManager:
             "quality": quality,
             "mode": "transcript" if transcript else "audio",
             "error": None,
+            "warnings": [],
             "output": None,
             "_narration": narration_path,
             "_transcript": transcript_path,
@@ -162,8 +174,13 @@ class JobManager:
             )
             paths = compile_project(job["_project_dir"] / "project.yml")
             lint = json.loads(paths["lint"].read_text(encoding="utf-8"))
-            if lint.get("status") != "pass":
-                raise RuntimeError(f"Storyboard quality check returned {lint.get('status', 'an unknown result')}.")
+            lint_status = lint.get("status")
+            if lint_status not in {"pass", "warning"}:
+                blocking = _lint_messages(lint, {"FATAL", "ERROR"})
+                detail = "; ".join(blocking[:3]) or f"quality check returned {lint_status or 'an unknown result'}"
+                raise RuntimeError(f"Storyboard cannot render: {detail}.")
+            warnings = _lint_messages(lint, {"WARNING"})
+            self._update(job_id, warnings=warnings)
 
             self._update(
                 job_id,
@@ -188,12 +205,19 @@ class JobManager:
             render_scale = 1.0
             rendered_width = max(2, int(round(composition["width"] * render_scale / 2) * 2))
             rendered_height = max(2, int(round(composition["height"] * render_scale / 2) * 2))
+            warning_count = len(warnings)
+            completion_message = (
+                f"Video finished with {warning_count} non-blocking quality note{'s' if warning_count != 1 else ''}. "
+                "See the decision report for details."
+                if warning_count
+                else "The deterministic render passed its storyboard checks."
+            )
             self._update(
                 job_id,
                 status="complete",
                 step="Video ready",
                 progress=100,
-                message="The deterministic render passed its storyboard checks.",
+                message=completion_message,
                 output={
                     "filename": output.name,
                     "duration": composition["duration"],
@@ -202,6 +226,8 @@ class JobManager:
                     "scenes": len(story["scenes"]),
                     "size_bytes": output.stat().st_size,
                     "lint_score": story["lint_summary"]["score"],
+                    "lint_status": lint_status,
+                    "warning_count": warning_count,
                 },
                 _video=output,
                 _report=paths["decisions"],
