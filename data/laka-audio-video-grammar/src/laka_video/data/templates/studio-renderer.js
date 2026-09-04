@@ -520,8 +520,44 @@
     });
   }
 
+  // ------------------------------------------------------ library elements ---
+  // The Studio element library draws anything the grammar marks with `element`.
+  // It is the author's own registry — 52 elements against the 23 this renderer
+  // implements — shipped conformed to the design system so its motion matches
+  // everything else in the frame rather than reintroducing overshoot.
+  const LIBRARY = new Map(((window.LAVC_ELEMENTS) || []).map(e => [e.id, e]));
+
+  function libraryContext() {
+    return {
+      // The library predates the token cleanup and asks for `accent2`, which
+      // is not a design-system colour. Binding it to accent-hover here resolves
+      // it at the boundary rather than by rewriting the library's source.
+      c: Object.assign({}, colors, { accent2: colors.accentHover }),
+      wash: "", W, H, U,
+      F: font,
+      px: n => `${Math.round(n * 100) / 100}px`,
+    };
+  }
+
+  function renderLibraryElement(scene, p, t) {
+    const element = LIBRARY.get(String(scene.element || ""));
+    if (!element || typeof element.render !== "function") return null;
+    try {
+      return element.render(p, t, libraryContext(), scene.payload || {});
+    } catch (error) {
+      // A broken element must not take the film down: fall back to the
+      // congruent-typography default, which is the safe move anyway.
+      if (DEBUG) console.error("element", scene.element, error);
+      return null;
+    }
+  }
+
   // -------------------------------------------------------------- templates ---
   function renderStudioTemplate(scene, p, t) {
+    if (scene.element) {
+      const drawn = renderLibraryElement(scene, p, t);
+      if (drawn !== null) return drawn;
+    }
     if (scene.layout === "image_overlay") return imageSlide(scene, p);
     if (scene.template === "matrix") return matrixFigure(scene, p);
 

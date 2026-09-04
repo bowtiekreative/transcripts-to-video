@@ -121,6 +121,35 @@ def _data_present(payload: dict[str, Any], context: dict[str, Any]) -> bool:
     return bool(context.get("data_bound")) or any(_present(payload, key) for key in ("series", "points", "values", "x_axis", "y_axis"))
 
 
+_SLOT_KEYS = ("left", "right", "from", "to", "parent", "a", "b", "c", "mark", "label", "text")
+
+
+def _slots_fit(template: dict[str, Any], payload: dict[str, Any]) -> tuple[bool, str]:
+    """An element whose text will not fit its boxes is not a candidate.
+
+    The Studio library draws fixed-width nodes sized for one-to-three word
+    labels. Handing it a sentence overflows the box at every aspect, so fit is
+    a condition of eligibility rather than something to fix afterwards: the
+    element is offered when the content suits it and skipped when it does not.
+    """
+    cap = template.get("max_words_per_slot")
+    if not cap:
+        return True, ""
+    cap = int(cap)
+    for key in _SLOT_KEYS:
+        value = payload.get(key)
+        if isinstance(value, str) and len(value.split()) > cap:
+            return False, f"{key} is {len(value.split())} words against a {cap}-word slot"
+    for key in ("items", "nodes", "children"):
+        value = payload.get(key)
+        if isinstance(value, list):
+            for entry in value:
+                text = entry.get("title") if isinstance(entry, dict) else entry
+                if isinstance(text, str) and len(text.split()) > cap:
+                    return False, f"{key} entry is {len(text.split())} words against a {cap}-word slot"
+    return True, ""
+
+
 def _hard_constraints(template: dict[str, Any], payload: dict[str, Any], duration: float, aspect: str, context: dict[str, Any]) -> tuple[bool, list[str]]:
     reasons: list[str] = []
     for key in template.get("required_all", []):
@@ -140,6 +169,9 @@ def _hard_constraints(template: dict[str, Any], payload: dict[str, Any], duratio
         return False, [f"duration {duration:.2f}s far outside {dlow}..{dhigh}s"]
     if template.get("requires_data") and not _data_present(payload, context):
         return False, ["explicit data required"]
+    fits, reason = _slots_fit(template, payload)
+    if not fits:
+        return False, [reason]
     if template.get("id") == "timeline" and context.get("primary_relation") == "timeline":
         events = payload.get("events")
         if not isinstance(events, list) or len(events) < 2 or not any(isinstance(e, dict) and e.get("time") for e in events):

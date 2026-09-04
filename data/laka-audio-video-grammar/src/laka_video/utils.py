@@ -230,3 +230,55 @@ def normalize_spoken_domains(text: str) -> str:
         return f"{prefix}{name}.{tld}"
 
     return _SPOKEN_DOMAIN_RE.sub(replace, text or "")
+
+
+# Motion primitives the design system does not have. The Studio library was
+# authored before the audit, so 30 of its elements overshoot, 8 rotate and 13
+# reach for a colour that is not a token. Conforming them at load time keeps the
+# author's file as the source of truth while the rendered frame still obeys the
+# system — rather than forking the library and letting the two drift.
+_OVERSHOOT_EASE = re.compile(
+    r"const eb=p=>\{p=clamp\(p\);const c1=1\.70158,c3=c1\+1;"
+    r"return 1\+c3\*Math\.pow\(p-1,3\)\+c1\*Math\.pow\(p-1,2\);\};"
+)
+_ROTATE_CALL = re.compile(r"\s*rotate\(\$\{[^}]*\}deg\)")
+_ROTATE_LITERAL = re.compile(r"\s*rotate\([^)]*deg\)")
+
+
+def conform_elements_js(source: str) -> tuple[str, dict[str, int]]:
+    """Bring the Studio element library into the design system.
+
+    Three substitutions, each replacing something the system forbids:
+      * the overshoot easing becomes the system's single ease-out curve
+      * rotation is removed from transforms
+      * accent2 is counted, and resolved at the context boundary by the renderer
+
+    Returns the conformed source and a count of what changed, so the swap is
+    auditable rather than silent.
+    """
+    counts = {"overshoot": 0, "rotation": 0, "off_token_colour": 0}
+
+    source, counts["overshoot"] = _OVERSHOOT_EASE.subn(
+        "const eb=p=>{p=clamp(p);const cx=3*0.16,bx=3*(0.3-0.16)-cx,ax=1-cx-bx;"
+        "let u=p;for(let i=0;i<6;i++){const f=((ax*u+bx)*u+cx)*u-p;"
+        "const d=(3*ax*u+2*bx)*u+cx;if(Math.abs(f)<1e-6||Math.abs(d)<1e-6)break;u-=f/d;}"
+        "u=clamp(u);const cy=3,by=-3,ay=1;return ((ay*u+by)*u+cy)*u;};",
+        source,
+    )
+    source, rotations = _ROTATE_CALL.subn("", source)
+    source, literal_rotations = _ROTATE_LITERAL.subn("", source)
+    counts["rotation"] = rotations + literal_rotations
+    # Colour is NOT rewritten. The library reads every colour from the context
+    # object the renderer hands it, so the off-token name is resolved there by
+    # binding accent2 to the accent-hover token. Rewriting call sites turned
+    # `x.c.accent2` into `x.(c.accentHover||...)` and broke the parse — and it
+    # was the wrong place regardless, since the boundary already exists.
+    counts["off_token_colour"] = source.count("c.accent2")
+    return source, counts
+
+
+def studio_elements_js() -> tuple[str, dict[str, int]]:
+    path = Path(__file__).resolve().parent / "data" / "templates" / "lavc-elements.js"
+    if not path.exists():
+        return "", {}
+    return conform_elements_js(path.read_text(encoding="utf-8"))

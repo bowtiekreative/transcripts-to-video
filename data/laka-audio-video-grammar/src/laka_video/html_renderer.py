@@ -6,7 +6,7 @@ from typing import Any
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from .utils import default_template_path, inline_font_face_css
+from .utils import default_template_path, inline_font_face_css, studio_elements_js
 
 
 def render_preview(
@@ -26,6 +26,7 @@ def render_preview(
     template = env.get_template(template_file.name)
     studio_renderer_path = template_file.parent / "studio-renderer.js"
     studio_renderer_js = studio_renderer_path.read_text(encoding="utf-8") if studio_renderer_path.exists() else ""
+    elements_js, conformed = studio_elements_js()
     storyboard_json = json.dumps(storyboard, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
     html = template.render(
         font_face_css=inline_font_face_css(),
@@ -34,6 +35,8 @@ def render_preview(
         music_src=music_src or "",
         title=storyboard.get("project", {}).get("title", "LAVC Preview"),
         studio_renderer_js=studio_renderer_js,
+        elements_js=elements_js,
+        elements_conformed=conformed,
     )
     target.write_text(html, encoding="utf-8")
     return target

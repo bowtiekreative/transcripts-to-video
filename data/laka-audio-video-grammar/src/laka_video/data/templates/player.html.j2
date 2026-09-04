@@ -42,6 +42,9 @@
 <div id="debug"></div>
 <audio id="voice" preload="auto" src={{ audio_src | tojson }}></audio>
 {% if music_src %}<audio id="music" preload="auto" loop src={{ music_src | tojson }}></audio>{% endif %}
+{% if elements_js %}<script>
+{{ elements_js | safe }}
+</script>{% endif %}
 <script>
 (() => {
   "use strict";

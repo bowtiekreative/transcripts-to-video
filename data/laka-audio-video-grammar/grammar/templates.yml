@@ -1,4 +1,8 @@
-version: 1.0.0
+version: 1.1.0
+# Templates the compiler can select. Entries carrying an `element` key are
+# drawn by the Studio element library (studio/lavc-elements.js, shipped and
+# conformed to the design system at load); the rest are drawn by
+# studio-renderer.js. Both paths obey the same order and the same gates.
 templates:
 - id: title_card
   relations:
@@ -613,3 +617,307 @@ templates:
   - '1:1'
   - '4:5'
   requires_data: true
+- id: caption_only
+  element: caption_only
+  relations:
+    emphasis: 55
+    identity: 30
+    question: 25
+  required_any:
+  - - text
+  - - headline
+  required_all: []
+  item_range:
+  - 0
+  - 0
+  duration_range:
+  - 1.5
+  - 12.0
+  density: sparse
+  layouts:
+  - centered
+  motion_family: reveal
+  semantic_risk: low
+  requires_data: false
+  aspects:
+  - '16:9'
+  - '1:1'
+  max_words_per_slot: 14
+- id: strike_through
+  element: strike_through
+  relations:
+    contrast: 95
+    warning: 50
+    transformation: 45
+  required_any: []
+  required_all:
+  - mark
+  item_range:
+  - 0
+  - 0
+  duration_range:
+  - 3.0
+  - 12.0
+  density: sparse
+  layouts:
+  - centered
+  motion_family: transform
+  semantic_risk: low
+  requires_data: false
+  aspects:
+  - '16:9'
+  - '1:1'
+  max_words_per_slot: 4
+- id: parts_diagram
+  element: parts_diagram
+  relations:
+    hierarchy: 100
+    list: 60
+    network: 40
+  required_any: []
+  required_all:
+  - parent
+  - items
+  item_range:
+  - 2
+  - 6
+  duration_range:
+  - 5.0
+  - 16.0
+  density: medium
+  layouts:
+  - vertical_tree
+  motion_family: stagger
+  semantic_risk: low
+  requires_data: false
+  aspects:
+  - '16:9'
+  - '1:1'
+  max_words_per_slot: 4
+- id: progress_bar
+  element: progress_bar
+  relations:
+    quantity: 92
+    sequence: 35
+  required_any: []
+  required_all:
+  - value
+  item_range:
+  - 0
+  - 0
+  duration_range:
+  - 3.0
+  - 12.0
+  density: sparse
+  layouts:
+  - full_field
+  motion_family: accumulate
+  semantic_risk: low
+  requires_data: true
+  aspects:
+  - '16:9'
+  - '1:1'
+  max_words_per_slot: 6
+- id: flow_diagram
+  element: flow_diagram
+  relations:
+    sequence: 100
+    cause_effect: 65
+    problem_solution: 45
+  required_any:
+  - - items
+  required_all: []
+  item_range:
+  - 2
+  - 4
+  duration_range:
+  - 5.0
+  - 16.0
+  density: low
+  layouts:
+  - horizontal_path
+  motion_family: trace
+  semantic_risk: low
+  requires_data: false
+  aspects:
+  - '16:9'
+  - '1:1'
+  max_words_per_slot: 3
+- id: delta
+  element: delta
+  relations:
+    quantity: 100
+    transformation: 70
+    contrast: 55
+  required_any: []
+  required_all:
+  - from
+  - to
+  item_range:
+  - 0
+  - 0
+  duration_range:
+  - 4.0
+  - 13.0
+  density: low
+  layouts:
+  - horizontal_bridge
+  motion_family: transform
+  semantic_risk: low
+  requires_data: true
+  aspects:
+  - '16:9'
+  - '1:1'
+  max_words_per_slot: 4
+- id: ranked_bars
+  element: ranked_bars
+  relations:
+    comparison: 92
+    quantity: 92
+    hierarchy: 45
+  required_any: []
+  required_all:
+  - series
+  item_range:
+  - 2
+  - 6
+  duration_range:
+  - 5.0
+  - 18.0
+  density: medium
+  layouts:
+  - horizontal_bars
+  motion_family: accumulate
+  semantic_risk: low
+  requires_data: true
+  aspects:
+  - '16:9'
+  - '1:1'
+  max_words_per_slot: 3
+- id: two_column
+  element: two_column
+  relations:
+    comparison: 95
+    contrast: 85
+    problem_solution: 55
+  required_any: []
+  required_all:
+  - a
+  - b
+  item_range:
+  - 2
+  - 2
+  duration_range:
+  - 4.0
+  - 14.0
+  density: low
+  layouts:
+  - side_split
+  motion_family: compare
+  semantic_risk: low
+  requires_data: false
+  aspects:
+  - '16:9'
+  - '1:1'
+  max_words_per_slot: 8
+- id: triptych
+  element: triptych
+  relations:
+    list: 88
+    identity: 45
+    hierarchy: 35
+  required_any:
+  - - items
+  required_all: []
+  item_range:
+  - 3
+  - 3
+  duration_range:
+  - 5.0
+  - 15.0
+  density: low
+  layouts:
+  - two_column_grid
+  motion_family: stagger
+  semantic_risk: low
+  requires_data: false
+  aspects:
+  - '16:9'
+  - '1:1'
+  max_words_per_slot: 3
+- id: equation
+  element: equation
+  relations:
+    definition: 100
+    cause_effect: 60
+    transformation: 50
+  required_any: []
+  required_all:
+  - a
+  - b
+  - c
+  item_range:
+  - 0
+  - 0
+  duration_range:
+  - 4.0
+  - 13.0
+  density: low
+  layouts:
+  - equation_stack
+  motion_family: reveal
+  semantic_risk: low
+  requires_data: false
+  aspects:
+  - '16:9'
+  - '1:1'
+  max_words_per_slot: 3
+- id: pictogram
+  element: pictogram
+  relations:
+    quantity: 92
+    comparison: 50
+  required_any: []
+  required_all:
+  - count
+  - total
+  item_range:
+  - 0
+  - 0
+  duration_range:
+  - 4.0
+  - 13.0
+  density: low
+  layouts:
+  - full_field
+  motion_family: accumulate
+  semantic_risk: low
+  requires_data: true
+  aspects:
+  - '16:9'
+  - '1:1'
+  max_words_per_slot: 5
+- id: stepper
+  element: stepper
+  relations:
+    sequence: 92
+    timeline: 50
+  required_any:
+  - - items
+  required_all: []
+  item_range:
+  - 2
+  - 5
+  duration_range:
+  - 4.0
+  - 15.0
+  density: low
+  layouts:
+  - horizontal_path
+  motion_family: trace
+  semantic_risk: low
+  requires_data: false
+  aspects:
+  - '16:9'
+  - '1:1'
+  max_words_per_slot: 3

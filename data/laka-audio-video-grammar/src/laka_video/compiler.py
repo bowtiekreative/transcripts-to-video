@@ -147,6 +147,40 @@ def _is_usable_span(span: str) -> bool:
     return any(len(t) > 2 and t not in _NOT_A_LABEL for t in tokens)
 
 
+# The Studio elements name their slots differently from the text pass. The
+# structure is already extracted — a transformation pair IS a delta's from/to,
+# a hierarchy IS a parts diagram's parent and items — so this is a projection,
+# not a second extraction. Nothing here invents a value: a key only appears when
+# the payload already carried the thing it names.
+def _adapt_payload_for_element(element: str, payload: dict[str, Any]) -> None:
+    left, right = payload.get("left"), payload.get("right")
+    items = payload.get("items") or payload.get("nodes") or payload.get("children") or []
+
+    if element == "delta" and left and right:
+        payload.setdefault("from", left)
+        payload.setdefault("to", right)
+    elif element == "two_column" and left and right:
+        payload.setdefault("a", {"label": payload.get("left_label") or "A", "text": left})
+        payload.setdefault("b", {"label": payload.get("right_label") or "B", "text": right})
+    elif element == "parts_diagram":
+        parent = payload.get("parent") or payload.get("center")
+        if parent and len(items) >= 2:
+            payload.setdefault("parent", parent)
+            payload.setdefault("items", list(items))
+    elif element in {"flow_diagram", "stepper"} and len(items) >= 2:
+        payload.setdefault("items", list(items))
+        if element == "stepper":
+            payload.setdefault("active", len(items))
+    elif element == "triptych" and len(items) == 3:
+        payload.setdefault("items", [{"title": str(v), "sub": ""} for v in items])
+    elif element == "equation" and len(items) == 3:
+        payload.setdefault("a", str(items[0]))
+        payload.setdefault("b", str(items[1]))
+        payload.setdefault("c", str(items[2]))
+    elif element == "caption_only":
+        payload.setdefault("text", payload.get("headline") or "")
+
+
 def _fill_payload_from_roles(payload: dict[str, Any], semantics: Any) -> None:
     roles = getattr(semantics, "roles", None) or {}
     if not roles:
@@ -284,6 +318,8 @@ def compile_project(
         budget_record = fit_payload_to_budget(
             analysis["payload"], draft.text, max(0.01, draft.duration), perception
         )
+        for _element in {t.get("element") for t in template_library.get("templates", []) if t.get("element")}:
+            _adapt_payload_for_element(str(_element), analysis["payload"])
         # EventMath 2.0: the same event object the Second Brain speaks, so a
         # storyboard scene and a brain node describe the world the same way.
         event = extract_event(
@@ -354,6 +390,10 @@ def compile_project(
             "words_per_second": scene_info["words_per_second"],
             "audio_features": features,
             "template": selected.template,
+            # Which library element draws this scene, if any. Without it the
+            # renderer cannot dispatch and an element-backed template silently
+            # falls through to the typographic default.
+            "element": template_spec.get("element"),
             "layout": selected.layout,
             "density": str(overrides.get("density") or template_spec.get("density", "low")),
             "payload": analysis["payload"],

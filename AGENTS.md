@@ -92,6 +92,17 @@ This compiler puts a neurodivergent speaker's own words on screen, so "reduce co
 
 A gap is only reported where it is a hole rather than unstated context. A spoken monologue has no `where`, and saying so on every scene buries the findings that matter; the sharp case is a scene whose own LENS is the missing field — it is *about* the when, and the when was never said.
 
+## The Studio element library
+
+`studio/lavc-elements.js` is the author's own registry — 52 elements — and `grammar/studio-library.yml` has named it as source since the compiler was written. It is now versioned, shipped inside the package, and reachable.
+
+- **Conformed at load, not forked.** `utils.conform_elements_js` replaces the overshoot easing with the system's curve and strips rotation, reporting counts so the swap is auditable. Colour is resolved at the boundary instead: the renderer binds `accent2` to the accent-hover token on the context object, because rewriting `x.c.accent2` in source produced `x.(c.accentHover||…)` and broke the parse. An SVG `rotate(-90 …)` survives — that is layout, not motion.
+- **Landscape only.** The library's context defaults to 1920×1080 and its elements lay out horizontally at fixed proportions; one rendered at 9:16 put two small nodes mid-frame. They declare `16:9` and `1:1`.
+- **Fit is a condition of eligibility.** The elements were authored against one-to-three word labels — their own demos are "Signal", "Detection", "Support" — and a sentence overflows the fixed node boxes at every aspect. `max_words_per_slot` makes an element ineligible when the content will not fit, so the richer forms get used for the punchy content they were designed for rather than forced onto prose that breaks them.
+- **Relation weights say what a form states best.** Authoring every element below every built-in made them unreachable by construction, which is a fudged tie-break rather than a judgement. Where two forms state a relation equally well they declare it equally and the order separates them on marks, chunks and words.
+
+An element wins when it is the better form, and `[[LAKA infographic=<id>]]` reaches one deliberately.
+
 ## Testing Guidelines
 
 Tests use `pytest` and follow `tests/test_<area>.py` with functions named `test_<behavior>`. Add focused unit tests for parser or rule changes and an integration assertion when generated storyboard behavior changes. Visual or brand changes must also satisfy `tests/test_design_system.py`; if a guard there is wrong, change the guard deliberately and say why in the commit. Verify repeatability, schema validity, and lint scores where applicable. Run `make test` before submitting changes; use `make demo` for compiler or grammar edits.
