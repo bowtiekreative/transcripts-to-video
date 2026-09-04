@@ -211,3 +211,63 @@ def test_every_runtime_asset_is_declared_as_package_data():
         if not any(fnmatch.fnmatch(relative, pattern) for pattern in patterns):
             missing.append(relative)
     assert not missing, f"not shipped in the wheel: {missing}"
+
+
+# ------------------------------------------------- perception in the render ---
+def test_no_type_falls_below_the_legibility_floor():
+    """Body-grade minimums are clamped to the published floor, not to a literal.
+
+    Seven `min:` clamps sat at 2.2-2.6U against a 2.8U floor, which is 22-26px
+    on a 1080 short edge where the floor is 28px.
+    """
+    import yaml
+
+    floor = float(
+        yaml.safe_load((GRAMMAR_SOURCE / "perception.yml").read_text(encoding="utf-8"))
+        ["typography"]["body_min_units"]
+    )
+    renderer = read_code("studio-renderer.js")
+    literals = [float(v) for v in re.findall(r"\bmin:\s*([\d.]+)\b", renderer)]
+    below = [v for v in literals if v < floor]
+    assert not below, f"minimums below the {floor}U legibility floor: {below}"
+    assert "BODY_FLOOR" in renderer
+    assert "body_min_units" in renderer, "the floor must be read from perception.yml"
+
+
+def test_aspect_drives_the_entrance():
+    """Achievements cut, states hold, activities never fully settle."""
+    renderer = read_code("studio-renderer.js")
+    assert "sceneOperator" in renderer
+    for operator in ('"cut"', '"static"', '"loop"'):
+        assert operator in renderer, f"motion operator {operator} is not handled"
+
+
+def test_stagger_adapts_to_item_count():
+    """clamp(1200/n, 60, 120): the step shrinks so the total build stays bounded."""
+    renderer = read_code("studio-renderer.js")
+    assert "staggerFor" in renderer
+    assert "STAGGER_BUDGET" in renderer and "STAGGER_BAND" in renderer
+    assert "index * 90" not in renderer, "a fixed 90ms step ignores list length"
+
+
+def test_a_strike_is_never_drawn_across_a_free_headline():
+    """Without a parser the negated span is unknown, and striking a whole line
+    for a phrase-level negation states the opposite of the sentence."""
+    renderer = read_code("studio-renderer.js")
+    block = renderer[renderer.index("function statementFrame"):renderer.index("function structuredFrame")]
+    assert "strikeThrough(" not in block, "statement frames must not draw a strike"
+
+
+def test_negation_markers_are_predicate_scoped():
+    """'without knowing why' is a manner adjunct, not a negation of the claim."""
+    import yaml
+
+    doc = yaml.safe_load((GRAMMAR_SOURCE / "lexicon" / "negation.yml").read_text(encoding="utf-8"))
+    flat = " ".join(str(v) for group in doc["markers"].values() for v in group)
+    assert "without" not in flat, "'without' scopes over its complement, not the clause"
+    assert "lack" not in flat, "privatives describe a state; they do not negate a predicate"
+
+
+def test_the_composition_pass_owns_the_accent_bleed():
+    renderer = read_code("studio-renderer.js")
+    assert "scene.accent_bleed" in renderer, "the renderer must honour the composition pass"

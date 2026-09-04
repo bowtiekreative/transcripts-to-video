@@ -128,6 +128,24 @@ _ROLE_SLOT_TO_PAYLOAD = {
 }
 
 
+# A role span has to be able to stand as a visible label. "You don't" reduces
+# to "don't", which is a contraction fragment, not an entity — it appeared as
+# an eyebrow reading DON'T above the headline it came from.
+_NOT_A_LABEL = {
+    "not", "no", "never", "dont", "don", "cant", "wont", "isnt", "arent", "didnt",
+    "doesnt", "t", "s", "re", "ve", "ll", "d", "m", "the", "a", "an", "this",
+    "that", "these", "those", "it", "its", "we", "you", "they", "he", "she", "i",
+}
+
+
+def _is_usable_span(span: str) -> bool:
+    tokens = [re.sub(r"[^\w]", "", t.lower()) for t in span.split()]
+    tokens = [t for t in tokens if t]
+    if not tokens:
+        return False
+    return any(len(t) > 2 and t not in _NOT_A_LABEL for t in tokens)
+
+
 def _fill_payload_from_roles(payload: dict[str, Any], semantics: Any) -> None:
     roles = getattr(semantics, "roles", None) or {}
     if not roles:
@@ -147,7 +165,7 @@ def _fill_payload_from_roles(payload: dict[str, Any], semantics: Any) -> None:
         if not key or payload.get(key):
             continue
         text = str(span).strip()
-        if text and len(text.split()) <= 9:
+        if text and len(text.split()) <= 9 and _is_usable_span(text):
             payload[key] = text
     # A pair is only a pair when both halves are present.
     if bool(payload.get("left")) != bool(payload.get("right")):

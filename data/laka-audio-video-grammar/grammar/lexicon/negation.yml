@@ -9,11 +9,20 @@ name: LAVC Negation
 #   WRONG:   show only its absence.
 # An empty frame does not communicate "no sales."
 
+# Only PREDICATE negation counts. "without knowing why" is a manner adjunct
+# that scopes over its own complement, not over the clause, and striking the
+# headline for it asserts the opposite of what the speaker said. Privatives
+# ("lacks", "missing") describe a state rather than negating a predicate, so
+# they are recorded for reference and never drawn.
 markers:
   verbal: ['\bnot\b', "\\bn't\\b", '\bnever\b', '\bno longer\b', '\bdid not\b', '\bdoes not\b', '\bdo not\b',
            '\bcannot\b', "\\bcan't\\b", "\\bwon't\\b", "\\bdidn't\\b", "\\bdoesn't\\b", "\\bisn't\\b", "\\baren't\\b"]
-  nominal: ['\bno\b', '\bnone\b', '\bnothing\b', '\bnobody\b', '\bneither\b', '\bwithout\b']
-  privative: ['\black(?:s|ed|ing)?\b', '\bmissing\b', '\babsent\b', '\bfail(?:s|ed)? to\b', '\bstopped\b']
+  nominal: ['\bno\b(?!\s+longer)', '\bnone\b', '\bnothing\b', '\bnobody\b', '\bneither\b']
+
+# Recorded, never rendered as a strike.
+non_predicate:
+  adjunct: ['\bwithout\b']
+  privative: ['\black(?:s|ed|ing)?\b', '\bmissing\b', '\babsent\b', '\bfail(?:s|ed)? to\b']
 
 render:
   show_positive_first: true

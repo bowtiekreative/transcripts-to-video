@@ -92,7 +92,7 @@
   // Fit a set of strings at one shared size, so a list reads as one list rather
   // than as several unrelated labels that happened to land near each other.
   function fitTogether(values, boxWidth, boxHeight, options) {
-    const opt = Object.assign({ max: 4.4, min: 2.2, weight: 600, tracking: -0.03, leading: 1.18, maxLines: 2 }, options || {});
+    const opt = Object.assign({ max: 4.4, min: BODY_FLOOR, weight: 600, tracking: -0.03, leading: 1.18, maxLines: 2 }, options || {});
     for (let step = 0; step <= 44; step++) {
       const size = (opt.max - (opt.max - opt.min) * (step / 44)) * U;
       const wrapped = values.map(value => wrapLines(value, boxWidth, size, opt.weight, opt.tracking));
@@ -107,6 +107,17 @@
   }
 
   // ------------------------------------------------------------ composition ---
+  // Published floors, from perception.yml. Body text below ~2.6% of the short
+  // edge stops being readable at social viewing distance, so the fitter clamps
+  // here and reduces CONTENT instead of dropping under it.
+  const PERCEPTION = STORY.perception || {};
+  const TYPO = PERCEPTION.typography || {};
+  const BODY_FLOOR = Number(TYPO.body_min_units || 2.8);
+  const MICRO_FLOOR = Number(TYPO.micro_min_units || 1.6);
+  const MOTION_CFG = PERCEPTION.motion || {};
+  const STAGGER_BAND = MOTION_CFG.stagger_ms || [60, 120];
+  const STAGGER_BUDGET = Number(MOTION_CFG.stagger_total_budget_ms || 1200);
+
   const MICRO_SIZE = 2.6 * U;
   const HEAD_GAP = 1.6 * U;
   const BAND_GAP = 3.4 * U;
@@ -129,14 +140,96 @@
     };
   }
 
+  // Vendler's aspectual class decides HOW a scene enters, because the class is
+  // a fact about the claim's temporal shape:
+  //
+  //   achievement   punctual        -> cut, no travel (below the 100ms floor
+  //                                   nothing is communicated by motion anyway)
+  //   accomplishment duration+end   -> build and settle
+  //   activity       no terminus    -> enters, then never fully comes to rest
+  //   state          no change      -> fades, does not move
+  //
+  // "Sales jumped" is an achievement: the value snaps rather than sliding up.
+  function sceneOperator(scene) {
+    return String(scene.semantics?.motion_operator || "build_settle");
+  }
+
   function revealStyle(p, scene, delayMs, riseUnits) {
     const duration = Math.max(0.001, scene.end - scene.start);
-    const span = 0.6 / duration;                       // --duration-base: 600ms
+    const operator = sceneOperator(scene);
     const start = (delayMs / 1000) / duration;
-    const q = dsEase((p - start) / Math.max(0.0001, span));
     const exit = 1 - dsEase((p - 0.94) / 0.06);
+
+    if (operator === "cut") {
+      // 80ms: inside the instantaneous band, so it reads as a state change
+      // rather than as a movement.
+      const q = clamp((p - start) / Math.max(0.0001, 0.08 / duration));
+      return `opacity:${(q * exit).toFixed(4)};`;
+    }
+
+    const span = 0.6 / duration;                       // --duration-base: 600ms
+    const q = dsEase((p - start) / Math.max(0.0001, span));
+
+    if (operator === "static") {
+      // A state does not travel. Fade only.
+      return `opacity:${(q * exit).toFixed(4)};`;
+    }
+
     const rise = (riseUnits === undefined ? 2.4 : riseUnits) * U;   // --rise: 24px
-    return `opacity:${(q * exit).toFixed(4)};transform:translateY(${px((1 - q) * rise)});`;
+    let offset = (1 - q) * rise;
+    if (operator === "loop") {
+      // An activity has no terminus, so it never fully settles. The residual
+      // drift is small enough to stay under the vestibular threshold and large
+      // enough to read as "still going".
+      const t = (p * duration);
+      offset += q * 0.22 * U * Math.sin(t * 1.6 + (delayMs / 260));
+    }
+    return `opacity:${(q * exit).toFixed(4)};transform:translateY(${px(offset)});`;
+  }
+
+  // ------------------------------------------------------------- modality ---
+  // Grammatical certainty must survive into the frame, or the graphic asserts
+  // more than the speaker did. A hedged claim drawn solid is a lie-factor
+  // violation in the labelling channel rather than the geometric one.
+  function modalityOf(scene) {
+    const sem = scene.semantics || {};
+    return {
+      level: String(sem.modality || "asserted"),
+      stroke: String(sem.modality_render?.stroke || (sem.modality === "possible" || sem.modality === "forecast" ? "dashed" : "solid")),
+      opacity: sem.modality === "possible" ? 0.78 : sem.modality === "forecast" ? 0.86 : 1,
+      approximate: sem.modality === "approximate" || sem.label_precision === "rounded",
+      attributed: sem.modality === "attributed",
+    };
+  }
+
+  // A surface carries its own certainty: dashed means "stated as possible".
+  function certaintyBorder(scene, colour) {
+    const mode = modalityOf(scene);
+    return `border:1px ${mode.stroke === "dashed" ? "dashed" : "solid"} ${colour};`;
+  }
+
+  // §8: negation is a two-step comprehension process. Show the object, THEN
+  // strike it. An empty frame does not communicate "no sales" — it communicates
+  // nothing, and the negated content stays partially activated either way.
+  // A strike is only drawn over an object the frame separately shows — a pair
+  // panel, a figure — never across a free headline. Without a parser there is
+  // no way to know which span the negation scopes over, and striking the whole
+  // line for a phrase-level negation states the opposite of the sentence.
+  // Congruent beats none beats incongruent: when the target is unknown, the
+  // negation is recorded in the storyboard and left undrawn.
+  function strikeThrough(scene, p, target) {
+    const negation = scene.semantics?.negation;
+    if (!negation || !target) return "";
+    const draw = revealAmount(p, scene, 620, 420);
+    if (draw <= 0.001) return "";
+    return `<div style="position:absolute;left:0;top:52%;height:${px(.3 * U)};width:${pct(draw)};background:${colors.danger};"></div>`;
+  }
+
+  // Gestalt common fate: 60-120ms reads as ONE group building, and the total
+  // build has to stay inside the budget, so the step shrinks as the list grows.
+  function staggerFor(count) {
+    const [low, high] = STAGGER_BAND;
+    return clamp(STAGGER_BUDGET / Math.max(1, count), Number(low), Number(high));
   }
 
   function revealAmount(p, scene, delayMs, durationMs) {
@@ -156,8 +249,9 @@
 
   // Headlines reveal line by line, like a shot list — never word by word.
   function headlineLines(fitted, p, scene, options) {
-    const opt = Object.assign({ color: colors.text, delay: 90, stagger: 90 }, options || {});
+    const opt = Object.assign({ color: colors.text, delay: 90 }, options || {});
     if (!fitted.lines.length) return "";
+    if (opt.stagger === undefined) opt.stagger = staggerFor(fitted.lines.length);
     const rendered = fitted.lines.map((line, index) =>
       `<div style="${revealStyle(p, scene, opt.delay + index * opt.stagger)}font:600 ${px(fitted.size)}/${fitted.leading} ${font};letter-spacing:-.05em;color:${opt.color};white-space:pre;">${esc(line)}</div>`
     ).join("");
@@ -175,7 +269,7 @@
   function bodyText(text, p, scene, box, delayMs, color) {
     if (!text) return "";
     const fitted = fitText(text, box.width, box.height, {
-      max: 3.8, min: 2.6, weight: 400, tracking: -0.012, leading: 1.5, maxLines: 5,
+      max: 3.8, min: BODY_FLOOR, weight: 400, tracking: -0.012, leading: 1.5, maxLines: 5,
     });
     if (!fitted.lines.length) return "";
     return `<div style="${revealStyle(p, scene, delayMs === undefined ? 420 : delayMs)}font:400 ${px(fitted.size)}/${fitted.leading} ${font};letter-spacing:-.012em;color:${color || colors.body};max-width:${px(box.width)};">${esc(fitted.lines.join(" "))}</div>`;
@@ -184,11 +278,17 @@
   // A statement frame: the micro-label holds the top of the safe area, the
   // statement is seated on the lower third. The air between them is the
   // composition — it is not space the layout failed to fill.
-  function statementFrame(eyebrow, block) {
+  function statementFrame(eyebrow, block, scene, p) {
     const box = frameBox();
-    return `<div style="position:absolute;left:${px(box.left)};top:${px(box.top)};width:${px(box.rail)};height:${px(box.height)};">
+    const mode = scene ? modalityOf(scene) : { opacity: 1 };
+    // Statement frames show one free line; there is no separately-drawn object
+    // for a strike to land on, so none is drawn here.
+    const strike = "";
+    return `<div style="position:absolute;left:${px(box.left)};top:${px(box.top)};width:${px(box.rail)};height:${px(box.height)};opacity:${mode.opacity};">
       <div style="position:absolute;left:0;top:0;">${eyebrow}</div>
-      <div style="position:absolute;left:0;bottom:0;width:100%;display:flex;flex-direction:column;align-items:flex-start;gap:${px(2.4 * U)};">${block}</div>
+      <div style="position:absolute;left:0;bottom:0;width:100%;display:flex;flex-direction:column;align-items:flex-start;gap:${px(2.4 * U)};">
+        <div style="position:relative;width:100%;">${block}${strike}</div>
+      </div>
     </div>`;
   }
 
@@ -264,9 +364,11 @@
     // A short list can afford a third line. Forcing two lines on a long row just
     // shrinks the whole list to fit the one item that did not want to wrap.
     const rowLines = items.length <= 3 ? 3 : 2;
-    const fit = fitTogether(items, textWidth, perRow - rowPad * 2, { max: rowMax, min: 2.4, maxLines: rowLines });
+    const fit = fitTogether(items, textWidth, perRow - rowPad * 2, { max: rowMax, min: BODY_FLOOR, maxLines: rowLines });
+    const rowStep = staggerFor(items.length);
     const rows = items.map((value, index) => {
-      const style = revealStyle(p, scene, 260 + index * 90);
+      const step = rowStep;
+      const style = revealStyle(p, scene, 260 + index * step);
       const glyph = ordered
         ? `<span style="font:600 ${px(fit.size * 0.82)}/1 ${font};letter-spacing:-.02em;color:${colors.accent};font-variant-numeric:tabular-nums;">${String(index + 1).padStart(2, "0")}</span>`
         : `<span style="font:600 ${px(fit.size * 0.9)}/1 ${font};color:${colors.accent};">&#8594;</span>`;
@@ -300,7 +402,8 @@
       const supporting = headlineUnlessEcho(P.supporting, [P.headline]);
       return statementFrame(eyebrow,
         headlineBlock(P.headline || scene.text, p, scene, { width: box.rail, height: box.height * 0.66 }, { max: 12.4, min: 5.4, maxLines: 5 }) +
-        bodyText(supporting, p, scene, { width: box.rail, height: box.height * 0.16 }, 480)
+        bodyText(supporting, p, scene, { width: box.rail, height: box.height * 0.16 }, 480),
+        scene, p
       );
     }
 
@@ -333,6 +436,16 @@
 
     // The blue full-bleed CTA is the one saturated scene change in the film.
     if (template === "cta_card") {
+      // The composition pass decides which single scene spends the accent; a
+      // second saturated frame would halve the salience of both.
+      if (scene.accent_bleed === false) {
+        return statementFrame(
+          microLabel(P.label || "", p, scene, 0, undefined, P.headline),
+          headlineBlock(P.headline || scene.text, p, scene, { width: box.rail, height: box.height * 0.62 }, { max: 12.4, min: 5.4, maxLines: 5 }) +
+          (P.destination ? `<div style="${revealStyle(p, scene, 620, 1.2)}font:600 ${px(MICRO_SIZE)}/1 ${font};letter-spacing:.12em;text-transform:uppercase;color:${colors.accentHover};">${esc(String(P.destination).toUpperCase())}</div>` : ""),
+          scene, p
+        );
+      }
       const sweep = revealAmount(p, scene, 0, 700);
       const button = revealAmount(p, scene, 700, 600);
       const onAccent = colors.onAccent;
@@ -409,7 +522,7 @@
         // Cards hug their type. A card taller than its content is a hollow box,
         // and the system has no hollow boxes in it.
         const panel = (index, panelLabel, delayMs, hot) =>
-          `<div style="${revealStyle(p, scene, delayMs)}display:flex;flex-direction:column;justify-content:center;gap:${px(1.6 * U)};padding:${px(pad)};border-radius:${px(1.6 * U)};background:${hot ? colors.raised : colors.surface};border:1px solid ${hot ? colors.accent : colors.hairSoft};">
+          `<div style="${revealStyle(p, scene, delayMs)}display:flex;flex-direction:column;justify-content:center;gap:${px(1.6 * U)};padding:${px(pad)};border-radius:${px(1.6 * U)};background:${hot ? colors.raised : colors.surface};${certaintyBorder(scene, hot ? colors.accent : colors.hairSoft)}">
             <div style="font:600 ${px(MICRO_SIZE)}/1 ${font};letter-spacing:.12em;text-transform:uppercase;color:${hot ? colors.accent : colors.muted};">${esc(String(panelLabel).toUpperCase())}</div>
             <div style="font:600 ${px(fit.size)}/${fit.leading} ${font};letter-spacing:-.03em;color:${colors.text};">${esc(fit.wrapped[index].join(" "))}</div>
           </div>`;
@@ -446,16 +559,16 @@
         if (!landscape) {
           const railX = 3.2 * U;
           const hubW = band.width;
-          const hubFit = fitText(centre, hubW - 6 * U, 11 * U, { max: 4.2, min: 2.4, weight: 600, tracking: -0.03, leading: 1.14, maxLines: 3 });
+          const hubFit = fitText(centre, hubW - 6 * U, 11 * U, { max: 4.2, min: BODY_FLOOR, weight: 600, tracking: -0.03, leading: 1.14, maxLines: 3 });
           const hubH = hubFit.height + 6 * U;
           const hubPlate = centre
-            ? `<div style="position:absolute;left:0;top:0;width:${px(hubW)};padding:${px(3 * U)};border-radius:${px(1.6 * U)};background:${colors.raised};border:1px solid ${colors.accent};opacity:${hub.toFixed(4)};transform:translateY(${px((1 - hub) * 2.4 * U)});font:600 ${px(hubFit.size)}/1.14 ${font};letter-spacing:-.03em;color:${colors.text};">${esc(hubFit.lines.join(" "))}</div>`
+            ? `<div style="position:absolute;left:0;top:0;width:${px(hubW)};padding:${px(3 * U)};border-radius:${px(1.6 * U)};background:${colors.raised};${certaintyBorder(scene, colors.accent)}opacity:${hub.toFixed(4)};transform:translateY(${px((1 - hub) * 2.4 * U)});font:600 ${px(hubFit.size)}/1.14 ${font};letter-spacing:-.03em;color:${colors.text};">${esc(hubFit.lines.join(" "))}</div>`
             : "";
           const listTop = centre ? hubH + 4 * U : 0;
           const listH = Math.max(8 * U, band.height - listTop);
           const textLeft = railX + 5 * U;
           const fit = fitTogether(nodes, band.width - textLeft, listH / Math.max(1, nodes.length) - 2.4 * U, {
-            max: 4, min: 2.4, weight: 600, tracking: -0.03, leading: 1.18, maxLines: 2,
+            max: 4, min: BODY_FLOOR, weight: 600, tracking: -0.03, leading: 1.18, maxLines: 2,
           });
           const step = listH / Math.max(1, nodes.length);
           // The rail is drawn to the last node it actually carries, not to an
@@ -463,7 +576,7 @@
           const railSpan = step * Math.max(0.5, nodes.length - 0.5);
           const rail = `<div style="position:absolute;left:${px(railX)};top:${px(listTop)};width:${px(.3 * U)};height:${px(railSpan * spokes)};background:${colors.hair};"></div>`;
           const rows = nodes.map((node, index) => {
-            const q = revealAmount(p, scene, 480 + index * 90, 600);
+            const q = revealAmount(p, scene, 480 + index * staggerFor(nodes.length), 600);
             const y = listTop + step * (index + 0.5);
             return `<div style="position:absolute;left:${px(railX)};top:${px(y)};width:${px(3.6 * U)};height:${px(.3 * U)};background:${colors.accent};opacity:${q.toFixed(3)};"></div>
               <div style="position:absolute;left:${px(railX - .9 * U)};top:${px(y - .9 * U)};width:${px(1.8 * U)};height:${px(1.8 * U)};border-radius:50%;background:${colors.accent};opacity:${q.toFixed(3)};"></div>
@@ -481,14 +594,14 @@
         const rx = Math.max(0, band.width * 0.5 - plateW * 0.5);
         const ry = Math.max(0, band.height * 0.5 - 9 * U);
         // One shared size across every node, so the ring reads as one figure.
-        const fit = fitTogether(nodes, plateW - 2 * U, 9 * U, { max: 3.6, min: 2.2, weight: 600, tracking: -0.02, leading: 1.18, maxLines: 3 });
+        const fit = fitTogether(nodes, plateW - 2 * U, 9 * U, { max: 3.6, min: BODY_FLOOR, weight: 600, tracking: -0.02, leading: 1.18, maxLines: 3 });
         let lines = "";
         let plates = "";
         nodes.forEach((node, index) => {
           const angle = -Math.PI / 2 + Math.PI * 2 * index / Math.max(1, nodes.length);
           const x = cx + Math.cos(angle) * rx;
           const y = cy + Math.sin(angle) * ry;
-          const q = revealAmount(p, scene, 480 + index * 90, 600);
+          const q = revealAmount(p, scene, 480 + index * staggerFor(nodes.length), 600);
           if (template === "cycle" && nodes.length > 1) {
             const next = -Math.PI / 2 + Math.PI * 2 * ((index + 1) % nodes.length) / nodes.length;
             lines += `<line x1="${x}" y1="${y}" x2="${cx + Math.cos(next) * rx}" y2="${cy + Math.sin(next) * ry}" stroke="${colors.accent}" stroke-width="${.24 * U}" opacity="${(spokes * .8).toFixed(3)}"/>`;
@@ -503,7 +616,7 @@
             </div>`;
         });
         const hubW = Math.min(band.width * 0.44, 28 * U);
-        const hubFit = fitText(centre, hubW - 3 * U, 10 * U, { max: 3.8, min: 2.2, weight: 600, tracking: -0.02, leading: 1.14, maxLines: 3 });
+        const hubFit = fitText(centre, hubW - 3 * U, 10 * U, { max: 3.8, min: BODY_FLOOR, weight: 600, tracking: -0.02, leading: 1.14, maxLines: 3 });
         const hubPlate = centre
           ? `<div style="position:absolute;left:${px(cx)};top:${px(cy)};transform:translate(-50%,-50%);opacity:${hub.toFixed(4)};width:${px(hubW)};padding:${px(2.2 * U)};border-radius:${px(2.4 * U)};background:${colors.raised};border:1px solid ${colors.accent};text-align:center;font:600 ${px(hubFit.size)}/1.14 ${font};letter-spacing:-.02em;color:${colors.text};">${esc(hubFit.lines.join(" "))}</div>`
           : "";
@@ -518,7 +631,7 @@
       return structuredFrame(head, band => {
         const labelW = band.width * 0.3;
         const rows = series.map((item, index) => {
-          const q = revealAmount(p, scene, 260 + index * 90, 700);
+          const q = revealAmount(p, scene, 260 + index * staggerFor(series.length), 700);
           const share = (Number(item.value) || 0) / max;
           return `<div style="flex:1 1 0;min-height:0;display:flex;align-items:center;gap:${px(2 * U)};border-top:1px solid ${index === 0 ? "transparent" : colors.hairSoft};">
             <div style="flex:0 0 ${px(labelW)};font:600 ${px(2.6 * U)}/1.2 ${font};letter-spacing:.06em;text-transform:uppercase;color:${colors.muted};opacity:${q.toFixed(3)};">${esc(String(item.label || "").toUpperCase())}</div>
@@ -539,7 +652,7 @@
         const gap = band.width / count * 0.3;
         const barW = (band.width - gap * (count - 1)) / count;
         const html = bars.map((value, index) => {
-          const q = revealAmount(p, scene, 200 + index * 12, 600);
+          const q = revealAmount(p, scene, 200 + index * Math.min(12, staggerFor(bars.length) / 6), 600);
           const height = clamp(Number(value)) * q;
           return `<div style="flex:0 0 ${px(barW)};height:${pct(Math.max(0.02, height))};align-self:center;border-radius:999px;background:${colors.accent};opacity:${(0.4 + 0.6 * q).toFixed(3)};"></div>`;
         }).join("");
@@ -549,6 +662,7 @@
 
     // ---- fallback: treat anything unmapped as a statement --------------------
     return statementFrame(microLabel(P.label || "", p, scene, 0, undefined, P.headline),
-      headlineBlock(P.headline || scene.text, p, scene, { width: box.rail, height: box.height * 0.66 }, { max: 12.4, min: 5.2, maxLines: 5 })
+      headlineBlock(P.headline || scene.text, p, scene, { width: box.rail, height: box.height * 0.66 }, { max: 12.4, min: 5.2, maxLines: 5 }),
+      scene, p
     );
   }
