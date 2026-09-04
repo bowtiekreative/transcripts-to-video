@@ -1,0 +1,10 @@
+.venv/
+.laka/
+dist/
+*.egg-info/
+__pycache__/
+*.pyc
+build/
+frames/
+*.mp4
+.DS_Store

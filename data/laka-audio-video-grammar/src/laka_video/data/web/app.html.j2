@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Turn narration and an optional SRT transcript into a deterministic LAKA infographic video on your machine.">
+  <meta name="theme-color" content="#07090D">
+  <title>LAKA Transcribe — deterministic video compiler</title>
+  <link rel="icon" sizes="32x32" href="https://designsystem.bowtiekreative.com/brand/favicon-32.png">
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+  <script src="{{ url_for('static', filename='app.js') }}" defer></script>
+</head>
+<body data-job-id="{{ initial_job.id if initial_job else '' }}">
+  <a class="skip-link" href="#main">Skip to compiler</a>
+
+  <header class="site-header" aria-label="Primary">
+    <div class="brand-group">
+      <img class="brand-seal" src="https://designsystem.bowtiekreative.com/brand/btk-seal-white.png" width="34" height="34" alt="Bow Tie Kreative">
+      <a class="site-name" href="/" aria-label="LAKA Transcribe home"><span>LAKA</span> <span>TRANSCRIBE</span></a>
+    </div>
+    <div class="header-actions">
+      <button class="menu-button" id="menu-button" type="button" aria-expanded="false" aria-controls="menu-panel">
+        <span>Menu</span><span class="menu-glyph" aria-hidden="true"></span>
+      </button>
+      <a class="button button-primary header-cta" href="#intake">Start a render</a>
+    </div>
+  </header>
+
+  <nav class="menu-panel" id="menu-panel" aria-label="Menu" hidden>
+    <a href="#how-it-works">How it works</a>
+    <a href="#intake">Add source files</a>
+    <a href="#input-rules">Input rules</a>
+  </nav>
+
+  <main id="main">
+    <section class="hero" id="how-it-works" aria-labelledby="page-title">
+      <div class="ambient-grid" aria-hidden="true"></div>
+      <div class="hero-copy reveal">
+        <p class="eyebrow">Local compiler <span aria-hidden="true">/</span> LAKA 4.3</p>
+        <h1 id="page-title">Drop a recording.<br>Get a designed video.</h1>
+        <p class="lede">Your audio supplies the clock. An optional SRT supplies meaning. LAKA constructs the visual space, EventMath sequences it, and FFmpeg returns the MP4.</p>
+
+        <ol class="pipeline" aria-label="Compilation pipeline">
+          <li><span class="pipeline-index">01</span><span>Parse</span></li>
+          <li><span class="pipeline-index">02</span><span>Structure</span></li>
+          <li><span class="pipeline-index">03</span><span>Compose</span></li>
+          <li><span class="pipeline-index">04</span><span>Render</span></li>
+        </ol>
+        <p class="local-note"><span class="local-mark" aria-hidden="true"></span>Deterministic and processed on this machine. No generative model is called.</p>
+      </div>
+
+      <div class="compiler-panel reveal" id="intake">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">New render</p>
+            <h2>Source to screen</h2>
+          </div>
+          <span class="version-chip">v0.1</span>
+        </div>
+
+        <form id="upload-form" action="{{ url_for('create_job') }}" method="post" enctype="multipart/form-data" novalidate>
+          <div class="field-group">
+            <label class="field-label" for="files">Narration and transcript</label>
+            <input class="visually-hidden" id="files" name="files" type="file" multiple required accept="audio/*,video/mp4,video/quicktime,video/webm,.mkv,.srt">
+            <label class="dropzone" id="dropzone" for="files">
+              <svg class="drop-icon" viewBox="0 0 48 48" width="48" height="48" aria-hidden="true">
+                <path d="M24 33V12m0 0-8 8m8-8 8 8M10 30v6a4 4 0 0 0 4 4h20a4 4 0 0 0 4-4v-6"/>
+              </svg>
+              <span class="drop-title">Drop files here</span>
+              <span class="drop-copy">or choose one narration file and an optional SRT</span>
+              <span class="drop-types">MP3 · WAV · M4A · MP4 · MOV · SRT</span>
+            </label>
+            <ul class="file-list" id="file-list" aria-live="polite"></ul>
+          </div>
+
+          <div class="settings-grid">
+            <div class="field-group">
+              <label class="field-label" for="aspect">Frame format</label>
+              <select id="aspect" name="aspect">
+                <option value="9:16">9:16 · Vertical</option>
+                <option value="16:9">16:9 · Landscape</option>
+                <option value="1:1">1:1 · Square</option>
+                <option value="4:5">4:5 · Portrait</option>
+              </select>
+            </div>
+            <div class="field-group">
+              <label class="field-label" for="quality">Render quality</label>
+              <select id="quality" name="quality">
+                <option value="draft">Draft · 12 fps</option>
+                <option value="standard">Standard · 30 fps</option>
+                <option value="high">High · 30 fps</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="error-summary" id="form-error" role="alert" tabindex="-1" {% if not form_error %}hidden{% endif %}>
+            <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M12 8v5m0 3.5v.01M10.3 4.7 3.2 17a2 2 0 0 0 1.7 3h14.2a2 2 0 0 0 1.7-3L13.7 4.7a2 2 0 0 0-3.4 0Z"/></svg>
+            <p>{{ form_error or '' }}</p>
+          </div>
+
+          <button class="button button-primary submit-button" id="submit-button" type="submit">
+            <span>Compile my video</span><span aria-hidden="true">→</span>
+          </button>
+        </form>
+
+        <p class="input-rules" id="input-rules">Narration is required. Add an SRT for semantic infographics; narration alone produces truthful rhythm and energy visuals.</p>
+      </div>
+    </section>
+
+    <section class="status-section" id="status-section" aria-labelledby="status-heading" {% if not initial_job %}hidden{% endif %}>
+      <div class="status-header">
+        <div>
+          <p class="eyebrow">Compiler output</p>
+          <h2 id="status-heading">{{ initial_job.step if initial_job else 'Processing locally' }}</h2>
+        </div>
+        <p class="status-percent" id="status-percent">{{ initial_job.progress if initial_job else 0 }}%</p>
+      </div>
+
+      <p class="status-message" id="status-message" aria-live="polite">{{ initial_job.message if initial_job else '' }}</p>
+      <label class="visually-hidden" for="render-progress">Render progress</label>
+      <progress id="render-progress" max="100" value="{{ initial_job.progress if initial_job else 0 }}">{{ initial_job.progress if initial_job else 0 }}%</progress>
+
+      <ol class="stepper" id="stepper" aria-label="Render stages">
+        <li data-stage="preparing"><span>1</span><strong>Read</strong><small>Timing and source</small></li>
+        <li data-stage="compiling"><span>2</span><strong>Compile</strong><small>Meaning and layout</small></li>
+        <li data-stage="rendering"><span>3</span><strong>Render</strong><small>Frames and audio</small></li>
+        <li data-stage="complete"><span>4</span><strong>Deliver</strong><small>MP4 and report</small></li>
+      </ol>
+
+      <div class="error-summary" id="job-error" role="alert" tabindex="-1" {% if not initial_job or not initial_job.error %}hidden{% endif %}>
+        <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M12 8v5m0 3.5v.01M10.3 4.7 3.2 17a2 2 0 0 0 1.7 3h14.2a2 2 0 0 0 1.7-3L13.7 4.7a2 2 0 0 0-3.4 0Z"/></svg>
+        <p>{{ initial_job.error if initial_job and initial_job.error else '' }}</p>
+      </div>
+
+      <div class="result" id="result" {% if not initial_job or initial_job.status != 'complete' %}hidden{% endif %}>
+        <div class="video-shell"{% if initial_job and initial_job.output %} style="aspect-ratio: {{ initial_job.output.width }} / {{ initial_job.output.height }}"{% endif %}>
+          {% if initial_job and initial_job.status == 'complete' %}
+          <video controls preload="metadata" src="{{ initial_job.video_url }}"></video>
+          {% endif %}
+        </div>
+        <div class="result-copy">
+          <p class="eyebrow">Render complete</p>
+          <h3>Ready to leave the compiler.</h3>
+          <dl id="result-meta">
+            {% if initial_job and initial_job.output %}
+            <div><dt>Duration</dt><dd>{{ '%.1f'|format(initial_job.output.duration) }}s</dd></div>
+            <div><dt>Frame</dt><dd>{{ initial_job.output.width }}×{{ initial_job.output.height }}</dd></div>
+            <div><dt>Scenes</dt><dd>{{ initial_job.output.scenes }}</dd></div>
+            <div><dt>Lint score</dt><dd>{{ initial_job.output.lint_score }}/100</dd></div>
+            {% endif %}
+          </dl>
+          {% if initial_job and initial_job.status == 'complete' %}
+          <div class="result-actions">
+            <a class="button button-primary" href="{{ initial_job.download_url }}">Download MP4</a>
+            <a class="button button-secondary" href="{{ initial_job.report_url }}">Decision report</a>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <noscript><p class="noscript-note">This render continues in the background. Refresh this page to see its latest state.</p></noscript>
+    </section>
+  </main>
+
+  <footer>
+    <p>LAKA Audio-to-Visual Compiler <span aria-hidden="true">·</span> local deterministic rendering</p>
+    <p>Powered by <a href="https://bowtiekreative.com">Bow Tie Kreative</a></p>
+  </footer>
+</body>
+</html>

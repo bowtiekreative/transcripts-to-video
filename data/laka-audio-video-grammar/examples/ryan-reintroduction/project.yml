@@ -1,0 +1,34 @@
+project:
+  id: ryan-reintroduction
+  title: Ryan Perez — Reintroduction
+  seed: 41
+
+source:
+  audio: audio.mp3
+  transcript: subtitles.srt
+  mode: transcript
+  music: null
+
+content:
+  speaker: Ryan Perez
+  organization: Bow Tie Kreative
+  destination: ryanperez.ca
+
+brand:
+  preset: ../../grammar/brand.example.yml
+
+output:
+  directory: build
+  aspect: "9:16"
+  width: 1080
+  height: 1920
+  fps: 30
+  tail_seconds: 2.5
+  captions: karaoke
+  copy_media: false
+
+rules:
+  min_scene_seconds: 3.5
+  target_scene_seconds: 7.5
+  max_scene_seconds: 12.0
+  max_words_on_screen: 18

@@ -1,0 +1,615 @@
+version: 1.0.0
+templates:
+- id: title_card
+  relations:
+    identity: 100
+    emphasis: 78
+    question: 55
+    cta: 45
+  required_any:
+  - - headline
+  required_all: []
+  item_range:
+  - 0
+  - 8
+  duration_range:
+  - 2.0
+  - 11.0
+  density: sparse
+  layouts:
+  - vertical_rail
+  - centered
+  - image_overlay
+  motion_family: reveal
+  semantic_risk: low
+  aspects:
+  - '9:16'
+  - '16:9'
+  - '1:1'
+  - '4:5'
+  requires_data: false
+- id: quote_focus
+  relations:
+    emphasis: 100
+    identity: 55
+    warning: 45
+  required_any:
+  - - headline
+  required_all: []
+  item_range:
+  - 0
+  - 8
+  duration_range:
+  - 3.0
+  - 12.0
+  density: sparse
+  layouts:
+  - centered
+  - vertical_rail
+  motion_family: reveal
+  semantic_risk: low
+  aspects:
+  - '9:16'
+  - '16:9'
+  - '1:1'
+  - '4:5'
+  requires_data: false
+- id: big_number
+  relations:
+    quantity: 100
+    timeline: 35
+    identity: 20
+  required_any: []
+  required_all:
+  - number
+  - label
+  item_range:
+  - 1
+  - 1
+  duration_range:
+  - 3.0
+  - 10.0
+  density: sparse
+  layouts:
+  - centered
+  - number_rail
+  motion_family: reveal
+  semantic_risk: low
+  aspects:
+  - '9:16'
+  - '16:9'
+  - '1:1'
+  - '4:5'
+  requires_data: false
+- id: list_stack
+  relations:
+    list: 100
+    sequence: 55
+    hierarchy: 30
+    network: 25
+  required_any:
+  - - items
+  - - nodes
+  - - children
+  required_all: []
+  item_range:
+  - 2
+  - 6
+  duration_range:
+  - 4.0
+  - 14.0
+  density: low
+  layouts:
+  - vertical_stack
+  - two_column_grid
+  motion_family: stagger
+  semantic_risk: low
+  aspects:
+  - '9:16'
+  - '16:9'
+  - '1:1'
+  - '4:5'
+  requires_data: false
+- id: steps
+  relations:
+    sequence: 100
+    problem_solution: 35
+  required_any:
+  - - items
+  required_all: []
+  item_range:
+  - 2
+  - 6
+  duration_range:
+  - 5.0
+  - 16.0
+  density: low
+  layouts:
+  - vertical_path
+  - horizontal_path
+  motion_family: trace
+  semantic_risk: low
+  aspects:
+  - '9:16'
+  - '16:9'
+  - '1:1'
+  - '4:5'
+  requires_data: false
+- id: timeline
+  relations:
+    timeline: 100
+    sequence: 55
+    contrast: 25
+  required_any:
+  - - events
+  - - items
+  required_all: []
+  item_range:
+  - 2
+  - 6
+  duration_range:
+  - 5.0
+  - 18.0
+  density: low
+  layouts:
+  - vertical_rail
+  - horizontal_axis
+  motion_family: trace
+  semantic_risk: low
+  aspects:
+  - '9:16'
+  - '16:9'
+  - '1:1'
+  - '4:5'
+  requires_data: false
+- id: before_after
+  relations:
+    contrast: 100
+    timeline: 72
+    transformation: 82
+    comparison: 55
+  required_any: []
+  required_all:
+  - left
+  - right
+  item_range:
+  - 2
+  - 2
+  duration_range:
+  - 4.0
+  - 13.0
+  density: low
+  layouts:
+  - stacked_split
+  - side_split
+  motion_family: transform
+  semantic_risk: low
+  aspects:
+  - '9:16'
+  - '16:9'
+  - '1:1'
+  - '4:5'
+  requires_data: false
+- id: comparison_split
+  relations:
+    comparison: 100
+    contrast: 88
+    warning: 35
+  required_any: []
+  required_all:
+  - left
+  - right
+  item_range:
+  - 2
+  - 2
+  duration_range:
+  - 4.0
+  - 14.0
+  density: low
+  layouts:
+  - stacked_split
+  - side_split
+  motion_family: compare
+  semantic_risk: low
+  aspects:
+  - '9:16'
+  - '16:9'
+  - '1:1'
+  - '4:5'
+  requires_data: false
+- id: transformation_arrow
+  relations:
+    transformation: 100
+    problem_solution: 78
+    cause_effect: 60
+    contrast: 50
+  required_any: []
+  required_all:
+  - left
+  - right
+  item_range:
+  - 2
+  - 2
+  duration_range:
+  - 4.0
+  - 13.0
+  density: low
+  layouts:
+  - vertical_bridge
+  - horizontal_bridge
+  motion_family: transform
+  semantic_risk: low
+  aspects:
+  - '9:16'
+  - '16:9'
+  - '1:1'
+  - '4:5'
+  requires_data: false
+- id: cause_effect
+  relations:
+    cause_effect: 100
+    problem_solution: 50
+    sequence: 35
+  required_any: []
+  required_all:
+  - left
+  - right
+  item_range:
+  - 2
+  - 2
+  duration_range:
+  - 4.5
+  - 14.0
+  density: low
+  layouts:
+  - vertical_bridge
+  - horizontal_bridge
+  motion_family: trace
+  semantic_risk: medium
+  aspects:
+  - '9:16'
+  - '16:9'
+  - '1:1'
+  - '4:5'
+  requires_data: false
+- id: problem_solution
+  relations:
+    problem_solution: 100
+    transformation: 68
+    contrast: 50
+  required_any: []
+  required_all:
+  - left
+  - right
+  item_range:
+  - 2
+  - 2
+  duration_range:
+  - 5.0
+  - 15.0
+  density: low
+  layouts:
+  - vertical_bridge
+  - side_split
+  motion_family: transform
+  semantic_risk: low
+  aspects:
+  - '9:16'
+  - '16:9'
+  - '1:1'
+  - '4:5'
+  requires_data: false
+- id: definition_card
+  relations:
+    definition: 100
+    identity: 35
+    emphasis: 30
+  required_any: []
+  required_all:
+  - term
+  - definition
+  item_range:
+  - 2
+  - 2
+  duration_range:
+  - 4.0
+  - 13.0
+  density: low
+  layouts:
+  - equation_stack
+  - term_left
+  motion_family: reveal
+  semantic_risk: low
+  aspects:
+  - '9:16'
+  - '16:9'
+  - '1:1'
+  - '4:5'
+  requires_data: false
+- id: hierarchy_tree
+  relations:
+    hierarchy: 100
+    list: 35
+    network: 30
+  required_any: []
+  required_all:
+  - parent
+  - children
+  item_range:
+  - 2
+  - 7
+  duration_range:
+  - 6.0
+  - 18.0
+  density: medium
+  layouts:
+  - vertical_tree
+  - horizontal_tree
+  motion_family: trace
+  semantic_risk: low
+  aspects:
+  - '9:16'
+  - '16:9'
+  - '1:1'
+  - '4:5'
+  requires_data: false
+- id: network
+  relations:
+    network: 100
+    hierarchy: 42
+    list: 20
+  required_any: []
+  required_all:
+  - center
+  - nodes
+  item_range:
+  - 3
+  - 8
+  duration_range:
+  - 6.0
+  - 18.0
+  density: medium
+  layouts:
+  - radial
+  - offset_hub
+  motion_family: trace
+  semantic_risk: low
+  aspects:
+  - '9:16'
+  - '16:9'
+  - '1:1'
+  - '4:5'
+  requires_data: false
+- id: cycle
+  relations:
+    cycle: 100
+    sequence: 40
+    network: 25
+  required_any:
+  - - items
+  - - nodes
+  required_all: []
+  item_range:
+  - 3
+  - 7
+  duration_range:
+  - 6.0
+  - 18.0
+  density: medium
+  layouts:
+  - radial_cycle
+  motion_family: trace
+  semantic_risk: medium
+  aspects:
+  - '9:16'
+  - '16:9'
+  - '1:1'
+  - '4:5'
+  requires_data: false
+- id: condition_cards
+  relations:
+    conditional: 100
+    sequence: 35
+    cause_effect: 30
+  required_any:
+  - - left
+    - right
+  - - items
+  required_all: []
+  item_range:
+  - 2
+  - 4
+  duration_range:
+  - 4.5
+  - 16.0
+  density: low
+  layouts:
+  - vertical_stack
+  - side_split
+  motion_family: stagger
+  semantic_risk: low
+  aspects:
+  - '9:16'
+  - '16:9'
+  - '1:1'
+  - '4:5'
+  requires_data: false
+- id: question_card
+  relations:
+    question: 100
+    problem_solution: 20
+  required_any:
+  - - headline
+  required_all: []
+  item_range:
+  - 0
+  - 8
+  duration_range:
+  - 3.0
+  - 12.0
+  density: sparse
+  layouts:
+  - centered
+  - vertical_rail
+  motion_family: reveal
+  semantic_risk: low
+  aspects:
+  - '9:16'
+  - '16:9'
+  - '1:1'
+  - '4:5'
+  requires_data: false
+- id: cta_card
+  relations:
+    cta: 100
+    identity: 20
+  required_any:
+  - - headline
+  - - action
+  required_all: []
+  item_range:
+  - 0
+  - 8
+  duration_range:
+  - 4.0
+  - 15.0
+  density: low
+  layouts:
+  - vertical_rail
+  - centered
+  - qr_split
+  motion_family: reveal
+  semantic_risk: low
+  aspects:
+  - '9:16'
+  - '16:9'
+  - '1:1'
+  - '4:5'
+  requires_data: false
+- id: warning_card
+  relations:
+    warning: 100
+  required_any:
+  - - headline
+  required_all: []
+  item_range:
+  - 0
+  - 8
+  duration_range:
+  - 3.0
+  - 12.0
+  density: low
+  layouts:
+  - centered
+  - vertical_rail
+  motion_family: reveal
+  semantic_risk: low
+  aspects:
+  - '9:16'
+  - '16:9'
+  - '1:1'
+  - '4:5'
+  requires_data: false
+- id: audio_wave
+  relations:
+    emphasis: 20
+    identity: 20
+  required_any:
+  - - energy_bars
+  required_all: []
+  item_range:
+  - 0
+  - 8
+  duration_range:
+  - 2.0
+  - 60.0
+  density: sparse
+  layouts:
+  - full_field
+  - centered
+  motion_family: pulse
+  semantic_risk: low
+  aspects:
+  - '9:16'
+  - '16:9'
+  - '1:1'
+  - '4:5'
+  requires_data: false
+- id: funnel
+  relations:
+    sequence: 55
+    quantity: 40
+    problem_solution: 25
+  required_any:
+  - - items
+  required_all: []
+  item_range:
+  - 3
+  - 7
+  duration_range:
+  - 6.0
+  - 18.0
+  density: medium
+  layouts:
+  - vertical_funnel
+  - horizontal_funnel
+  motion_family: accumulate
+  semantic_risk: medium
+  aspects:
+  - '9:16'
+  - '16:9'
+  - '1:1'
+  - '4:5'
+  requires_data: true
+- id: bar_chart
+  relations:
+    quantity: 90
+    comparison: 60
+    timeline: 35
+  required_any: []
+  required_all:
+  - series
+  item_range:
+  - 2
+  - 12
+  duration_range:
+  - 6.0
+  - 20.0
+  density: medium
+  layouts:
+  - vertical_bars
+  - horizontal_bars
+  motion_family: accumulate
+  semantic_risk: medium
+  aspects:
+  - '9:16'
+  - '16:9'
+  - '1:1'
+  - '4:5'
+  requires_data: true
+- id: matrix
+  relations:
+    comparison: 50
+    hierarchy: 25
+  required_any: []
+  required_all:
+  - x_axis
+  - y_axis
+  - points
+  item_range:
+  - 2
+  - 20
+  duration_range:
+  - 8.0
+  - 25.0
+  density: high
+  layouts:
+  - matrix_grid
+  motion_family: stagger
+  semantic_risk: high
+  aspects:
+  - '9:16'
+  - '16:9'
+  - '1:1'
+  - '4:5'
+  requires_data: true

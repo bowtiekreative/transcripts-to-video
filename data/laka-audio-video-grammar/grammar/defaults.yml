@@ -1,0 +1,56 @@
+version: 1.0.0
+timing:
+  min_scene_seconds: 3.5
+  target_scene_seconds: 7.5
+  max_scene_seconds: 12.0
+  min_reveal_seconds: 0.55
+  min_resolve_seconds: 0.8
+  pause_scene_boundary_seconds: 0.55
+  tail_seconds: 2.0
+text:
+  max_words_on_screen: 18
+  max_caption_words: 7
+  max_caption_characters: 34
+  max_items_auto: 6
+  headline_min_words: 2
+  headline_max_words: 9
+  dense_speech_wps: 3.2
+selection:
+  repeat_window: 3
+  tie_epsilon: 0.05
+  weights:
+    semantic: 35
+    payload: 15
+    timing: 10
+    density: 10
+    aspect: 8
+    audio: 5
+    continuity: 7
+    variation: 5
+    brand: 3
+    preference: 2
+  penalties:
+    same_previous_template: 8
+    three_in_window: 14
+    weak_pair: 12
+    medium_risk: 4
+    high_risk: 10
+    caption_collision: 8
+audio:
+  sample_rate: 16000
+  frame_ms: 40
+  hop_ms: 20
+  silence_db: -42.0
+  silence_min_seconds: 0.3
+  onset_min_gap_seconds: 0.18
+  energy_bars: 128
+output:
+  aspect: '9:16'
+  width: 1080
+  height: 1920
+  fps: 30
+  captions: karaoke
+  copy_media: true
+  background: '#07090D'
+allowed_templates: []
+denied_templates: []

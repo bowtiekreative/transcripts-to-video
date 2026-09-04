@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "laka-audio-video-grammar"
+version = "0.1.0"
+description = "Deterministic LAKA audio-to-visual presentation compiler"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "Flask>=3.0",
+  "PyYAML>=6.0",
+  "numpy>=1.24",
+  "Jinja2>=3.1",
+  "jsonschema>=4.18",
+  "playwright>=1.40",
+]
+
+[project.scripts]
+laka-video = "laka_video.cli:main"
+laka-transcribe = "laka_video.web:main"
+
+[project.optional-dependencies]
+dev = ["pytest>=7.4"]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+laka_video = [
+  "data/grammar/*.yml",
+  "data/grammar/*.json",
+  "data/grammar/*.ebnf",
+  "data/templates/*.j2",
+  "data/web/*.j2",
+  "data/web/*.css",
+  "data/web/*.js",
+]

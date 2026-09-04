@@ -1,0 +1,34 @@
+version: 1.0.0
+name: LAVC Dark Default
+colors:
+  canvas: '#07090D'
+  surface: '#1A1D24'
+  raised: '#23262F'
+  text: '#F5F7FA'
+  body: '#C5C7CE'
+  muted: '#8A8D96'
+  accent: '#3F6EE9'
+  accent_2: '#8AA4FF'
+  danger: '#D64A4A'
+  hair: rgba(255,255,255,0.15)
+  hair_soft: rgba(255,255,255,0.08)
+type:
+  family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif
+  weight_head: 650
+  weight_body: 420
+  letter_spacing_head: -0.035em
+shape:
+  radius_small: 10
+  radius_medium: 20
+  radius_large: 34
+  line_width: 3
+spacing:
+  edge_ratio: 0.075
+  caption_bottom_ratio: 0.07
+  caption_height_ratio: 0.17
+motion:
+  character: restrained
+  reduced_motion: false
+  camera_drift: true
+allowed_templates: []
+denied_templates: []

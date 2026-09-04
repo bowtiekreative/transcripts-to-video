@@ -1,0 +1,184 @@
+version: 1.0.0
+families:
+  reveal:
+    function: reveal
+    mechanisms:
+    - fade
+    - translate
+    - mask
+    magnitude: small
+    rate: medium
+    direction: up
+    scope: group
+    depth: property
+    duration: scene
+    frequency: once
+    acceleration: ease_out
+    variability: fixed
+    detectability: clear
+    reversibility: none
+    propagation: sequential
+    amplification: key_phrase
+    accumulation: persist
+  stagger:
+    function: build
+    mechanisms:
+    - fade
+    - translate
+    - stagger
+    magnitude: small
+    rate: medium
+    direction: forward
+    scope: group
+    depth: layout
+    duration: scene
+    frequency: per_item
+    acceleration: ease_out
+    variability: fixed
+    detectability: clear
+    reversibility: none
+    propagation: sequential
+    amplification: active_item
+    accumulation: build
+  trace:
+    function: connect
+    mechanisms:
+    - draw
+    - node_pop
+    - stagger
+    magnitude: medium
+    rate: medium
+    direction: forward
+    scope: group
+    depth: structural
+    duration: scene
+    frequency: per_item
+    acceleration: ease_in_out
+    variability: fixed
+    detectability: clear
+    reversibility: none
+    propagation: sequential
+    amplification: conclusion
+    accumulation: build
+  transform:
+    function: transform
+    mechanisms:
+    - replace
+    - wipe
+    - bridge
+    magnitude: medium
+    rate: medium
+    direction: forward
+    scope: scene
+    depth: structural
+    duration: scene
+    frequency: once
+    acceleration: ease_in_out
+    variability: fixed
+    detectability: clear
+    reversibility: none
+    propagation: causal
+    amplification: destination
+    accumulation: replace
+  compare:
+    function: compare
+    mechanisms:
+    - opposed_slide
+    - shared_baseline
+    - highlight
+    magnitude: small
+    rate: medium
+    direction: opposed
+    scope: group
+    depth: layout
+    duration: scene
+    frequency: per_side
+    acceleration: ease_out
+    variability: fixed
+    detectability: clear
+    reversibility: none
+    propagation: simultaneous
+    amplification: difference
+    accumulation: persist
+  accumulate:
+    function: build
+    mechanisms:
+    - grow
+    - stack
+    - count
+    magnitude: medium
+    rate: medium
+    direction: up
+    scope: group
+    depth: structural
+    duration: scene
+    frequency: per_item
+    acceleration: ease_out
+    variability: fixed
+    detectability: clear
+    reversibility: none
+    propagation: sequential
+    amplification: total
+    accumulation: build
+  pulse:
+    function: emphasize
+    mechanisms:
+    - bounded_scale
+    - opacity
+    magnitude: micro
+    rate: audio_locked
+    direction: outward
+    scope: element
+    depth: property
+    duration: continuous
+    frequency: continuous
+    acceleration: measured
+    variability: audio
+    detectability: subtle
+    reversibility: ping_pong
+    propagation: simultaneous
+    amplification: energy
+    accumulation: reset
+modifiers:
+  dense_speech:
+    magnitude: small
+    variability: low
+    detectability: subtle
+    frequency: once_or_per_group
+  sensitive_content:
+    magnitude: small
+    rate: slow
+    acceleration: ease_in_out
+    detectability: subtle
+  high_energy:
+    rate: fast
+    magnitude: medium
+    detectability: clear
+  low_energy:
+    rate: slow
+    magnitude: small
+    detectability: subtle
+  reduced_motion:
+    mechanisms:
+    - fade
+    magnitude: micro
+    rate: medium
+    direction: none
+    variability: fixed
+    detectability: clear
+phases:
+  establish:
+  - 0.0
+  - 0.18
+  build:
+  - 0.12
+  - 0.65
+  emphasize:
+  - 0.55
+  - 0.82
+  resolve:
+  - 0.75
+  - 0.94
+  exit:
+  - 0.9
+  - 1.0

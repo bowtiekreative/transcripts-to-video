@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "storyboard.schema.json",
+  "title": "LAVC Storyboard",
+  "type": "object",
+  "required": [
+    "engine_version",
+    "project",
+    "composition",
+    "scenes",
+    "brand"
+  ],
+  "properties": {
+    "engine_version": {
+      "type": "string"
+    },
+    "grammar_version": {
+      "type": "string"
+    },
+    "project": {
+      "type": "object"
+    },
+    "composition": {
+      "type": "object",
+      "required": [
+        "duration",
+        "width",
+        "height",
+        "fps"
+      ],
+      "properties": {
+        "duration": {
+          "type": "number",
+          "minimum": 0
+        },
+        "width": {
+          "type": "integer"
+        },
+        "height": {
+          "type": "integer"
+        },
+        "fps": {
+          "type": "number"
+        },
+        "aspect": {
+          "type": "string"
+        }
+      }
+    },
+    "brand": {
+      "type": "object"
+    },
+    "audio_analysis": {
+      "type": "object"
+    },
+    "captions": {
+      "type": "array"
+    },
+    "scenes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "start",
+          "end",
+          "text",
+          "primary_relation",
+          "template",
+          "layout",
+          "payload",
+          "motion"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "start": {
+            "type": "number"
+          },
+          "end": {
+            "type": "number"
+          },
+          "text": {
+            "type": "string"
+          },
+          "primary_relation": {
+            "type": "string"
+          },
+          "template": {
+            "type": "string"
+          },
+          "layout": {
+            "type": "string"
+          },
+          "payload": {
+            "type": "object"
+          },
+          "motion": {
+            "type": "object"
+          }
+        }
+      }
+    }
+  },
+  "additionalProperties": true
+}

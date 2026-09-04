@@ -1,0 +1,39 @@
+1
+00:00:00,000 --> 00:00:00,880
+Hello.
+
+2
+00:00:01,380 --> 00:00:18,980
+You might know me through Bow Tie Kreative, my podcast, or something I’ve built. But those are pieces of a bigger picture. So let me reintroduce myself. I’m Ryan Perez, and my work starts with a question: what could we build from the problem we keep running into?
+
+3
+00:00:19,480 --> 00:00:40,680
+At forty-one, I was diagnosed with autism, and ADHD. Before that, I’d spent years building workarounds without knowing why I needed them. That changed how I understood my own experience. Instead of only asking how to fit into an existing system, I started asking how the system could work differently.
+
+4
+00:00:41,180 --> 00:01:00,060
+Today, I’m a cognitive architect and innovation strategist. That means I help people take a difficult problem apart, see possibilities they might have missed, and choose something useful to build. We start with what’s happening, look at who it affects, and work toward a practical first step.
+
+5
+00:01:00,560 --> 00:01:23,040
+That thinking connects my projects. Through Bow Tie Kreative, I build websites, funnels, and systems that help businesses turn attention into action. Goose Caboose looks for potential leads that marketing has left behind. The question isn’t just how to get more people through the door. It’s what happens to the people already arriving.
+
+6
+00:01:23,540 --> 00:01:45,700
+Other projects ask who gets left outside that door. All Inclusive Websites focuses on accessibility-first web design. Souls Matter brings together reviews from neurodivergent and disabled people, covering things like noise, lighting, and physical access. A place can look welcoming in a photograph and feel completely different when you’re there.
+
+7
+00:01:46,200 --> 00:02:07,080
+HouseSmart takes that practical approach into the home through independent smart-home consulting. DigitalStemCell tackles another problem: information that goes stale. It’s my framework for living documents that can evolve, connect their sources, and show what changed, rather than leaving people guessing which version to trust.
+
+8
+00:02:07,580 --> 00:02:27,580
+I’m also building LAKA systems for writing, design, and research. I want the decisions behind the work to be clear enough to question, test, and improve. When a rule helps, we should understand why. When the situation changes, we should know what needs to change with it.
+
+9
+00:02:28,080 --> 00:02:44,720
+Through my books, courses, and the HustleZone podcast, I share that wider conversation about turning difficult experiences into constructive action. Different projects, but a shared purpose: make something useful from what we’ve learned.
+
+10
+00:02:45,220 --> 00:03:03,060
+Ryan Perez dot c a is where it comes together. You can explore the projects, hear the conversations, or book a Clarity Session around a challenge of your own. You don’t need a polished idea. Bring the problem you can’t stop thinking about. Let’s find out what it could become.

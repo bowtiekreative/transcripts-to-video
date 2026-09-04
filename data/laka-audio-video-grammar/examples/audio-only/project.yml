@@ -1,0 +1,36 @@
+project:
+  id: audio-only-demo
+  title: Audio-Only Structure Demo
+  seed: 33
+
+source:
+  audio: ../demo/audio.wav
+  transcript: null
+  mode: audio
+  music: null
+
+content:
+  title: Audio-Only Structure Demo
+  chapters:
+    - Measured energy
+    - Detected transition
+    - Sustained section
+    - Closing movement
+
+brand:
+  preset: ../../grammar/brand.example.yml
+
+output:
+  directory: build
+  aspect: "9:16"
+  width: 540
+  height: 960
+  fps: 24
+  tail_seconds: 1.5
+  captions: none
+  copy_media: true
+
+rules:
+  min_scene_seconds: 3.5
+  target_scene_seconds: 7.0
+  max_scene_seconds: 11.0

@@ -1,0 +1,97 @@
+version: 1.0.0
+relations:
+  identity:
+    roles:
+    - headline
+    - label
+    - asset
+    truth_test: The text identifies or introduces a subject.
+  definition:
+    roles:
+    - term
+    - definition
+    truth_test: Both a term and an explicit meaning are present.
+  list:
+    roles:
+    - items
+    truth_test: Items are peers and order is not required.
+  sequence:
+    roles:
+    - items
+    truth_test: The language gives an order or procedure.
+  timeline:
+    roles:
+    - events
+    truth_test: At least two events or states have time markers.
+  contrast:
+    roles:
+    - left
+    - right
+    truth_test: The language explicitly opposes or replaces two ideas.
+  comparison:
+    roles:
+    - left
+    - right
+    - criterion
+    truth_test: Two subjects are evaluated on a shared dimension.
+  transformation:
+    roles:
+    - left
+    - right
+    truth_test: A source state becomes a destination state.
+  cause_effect:
+    roles:
+    - left
+    - right
+    truth_test: The language claims a directional causal relation.
+  problem_solution:
+    roles:
+    - left
+    - right
+    truth_test: A problem and a response are both represented.
+  hierarchy:
+    roles:
+    - parent
+    - children
+    truth_test: The text states a parent, part, or containment relation.
+  network:
+    roles:
+    - center
+    - nodes
+    truth_test: Several entities are explicitly connected.
+  cycle:
+    roles:
+    - items
+    truth_test: A return, repeat, feedback, or recurrence is explicit.
+  quantity:
+    roles:
+    - number
+    - label
+    - unit
+    truth_test: The value and what it measures are present.
+  question:
+    roles:
+    - headline
+    truth_test: The scene poses a question and does not visually answer it early.
+  cta:
+    roles:
+    - headline
+    - action
+    - destination
+    truth_test: A specific audience action is invited.
+  warning:
+    roles:
+    - headline
+    - supporting
+    truth_test: A risk, prohibition, or precaution is explicit.
+  emphasis:
+    roles:
+    - headline
+    - supporting
+    truth_test: Exact wording is shown without adding a relationship.
+  conditional:
+    roles:
+    - left
+    - right
+    - items
+    truth_test: The language explicitly states a condition and its response.

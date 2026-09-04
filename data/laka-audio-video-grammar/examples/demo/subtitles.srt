@@ -1,0 +1,21 @@
+1
+00:00:00,000 --> 00:00:04,000
+[[LAKA relation=transformation left="Audio" right="Timed presentation" headline="Audio into a presentation"]]
+This system turns audio into a timed presentation.
+
+2
+00:00:04,500 --> 00:00:10,000
+First, measure the timeline. Next, identify the relationship. Finally, reveal it in order.
+
+3
+00:00:10,500 --> 00:00:16,200
+Before, every scene was rebuilt by hand. But now, the same grammar can compile it again.
+
+4
+00:00:16,700 --> 00:00:23,300
+The system checks three things: timing, clarity, and semantic truth.
+
+5
+00:00:23,800 --> 00:00:30,500
+[[LAKA relation=cta infographic=cta_card action="Open the storyboard" destination="example.com"]]
+Open the storyboard, inspect every choice, and render the result.

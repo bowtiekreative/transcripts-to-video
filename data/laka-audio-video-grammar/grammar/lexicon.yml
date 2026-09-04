@@ -1,0 +1,275 @@
+version: 1.0.0
+relations:
+  identity:
+    base_weight: 4.0
+    patterns:
+    - \bmy name is\b
+    - \bi am\b
+    - \bi[’']m\b
+    - \bintroduc(?:e|ing|tion)\b
+    - \bwelcome\b
+    - ^hello\b
+  definition:
+    base_weight: 5.0
+    patterns:
+    - (?<!that )\bmeans?\b
+    - \brefers? to\b
+    - \bdefined as\b
+    - \bis an?\b
+  list:
+    base_weight: 3.0
+    patterns:
+    - \bincluding\b
+    - \bsuch as\b
+    - \bthings like\b
+    - \bcovering\b
+    - \bfor example\b
+    - \bamong them\b
+  sequence:
+    base_weight: 5.0
+    patterns:
+    - (?:^|[.!?]\s+|,\s*)first(?:ly)?\b
+    - (?:^|[.!?]\s+|,\s*)second(?:ly)?\b
+    - (?:^|[.!?]\s+|,\s*)third(?:ly)?\b
+    - \bnext\b
+    - \bthen\b
+    - \bfinally\b
+    - \bstart(?:s|ed|ing)? with\b
+    - \bstep\b
+    - \bfollowed by\b
+  timeline:
+    base_weight: 4.0
+    patterns:
+    - \bbefore\b
+    - \bafter\b
+    - \byears? ago\b
+    - \btoday\b
+    - \blater\b
+    - \bat (?:age |forty|thirty|twenty|\d)
+    - \bwhen\b
+    - \bin (?:19|20)\d{2}\b
+  contrast:
+    base_weight: 5.0
+    patterns:
+    - \bbut\b
+    - \bhowever\b
+    - '\binstead(?: of)?\b'
+    - \brather than\b
+    - \bwhile\b
+    - \byet\b
+    - \bnot only\b
+    - \bdifferent(?:ly| from)?\b
+  comparison:
+    base_weight: 5.0
+    patterns:
+    - \bmore than\b
+    - \bless than\b
+    - \bcompared (?:with|to)\b
+    - \bversus\b
+    - \bvs\.?\b
+    - \bsimilar to\b
+    - \bdifferent from\b
+  transformation:
+    base_weight: 6.0
+    patterns:
+    - \bfrom .{1,80}\bto\b
+    - \bturn(?:s|ed|ing)? .{1,80}\binto\b
+    - \bconvert(?:s|ed|ing)?\b
+    - \bbecome(?:s|ing)?\b
+    - \bchanged? into\b
+    - \btransform(?:s|ed|ing|ation)?\b
+  cause_effect:
+    base_weight: 5.0
+    patterns:
+    - \bbecause\b
+    - \btherefore\b
+    - \bas a result\b
+    - \bleads? to\b
+    - \bresults? in\b
+    - \bcauses?\b
+    - \bcreates?\b
+    - \bso that\b
+  problem_solution:
+    base_weight: 5.0
+    patterns:
+    - \bproblem\b
+    - \bchallenge\b
+    - \bobstacle\b
+    - \bissue\b
+    - \bpain point\b
+    - \bsolve(?:s|d|ing)?\b
+    - \bsolution\b
+    - \banswer\b
+    - \bworkaround\b
+    - \buseful to build\b
+  hierarchy:
+    base_weight: 5.0
+    patterns:
+    - \bpart of\b
+    - \bconsists? of\b
+    - \bincludes?\b
+    - \bcontains?\b
+    - \bwithin\b
+    - \bunder\b
+    - \bcategory\b
+  network:
+    base_weight: 5.0
+    patterns:
+    - \bconnect(?:s|ed|ing|ion)?\b
+    - \btogether\b
+    - \blink(?:s|ed|ing)?\b
+    - \bnetwork\b
+    - \becosystem\b
+    - \bsources\b
+    - \brelationships?\b
+  cycle:
+    base_weight: 3.0
+    patterns:
+    - \bcycle\b
+    - \bloop\b
+    - \brepeat(?:s|ed|ing)?\b
+    - \bfeedback\b
+    - \bagain\b
+    - \bevolve(?:s|d|ing)?\b
+    - \bcontinuous(?:ly)?\b
+  quantity:
+    base_weight: 4.0
+    patterns:
+    - \b\d+(?:\.\d+)?%?\b
+    - \$\s?\d+
+    - \bpercent\b
+    - \bper cent\b
+    - \bmillion\b
+    - \bbillion\b
+  question:
+    base_weight: 6.0
+    patterns:
+    - \?$
+    - \bthe question\b
+    - \b(?:ask|asking|asks)\s+(?:what|why|how|who|where|when|which)\b
+  cta:
+    base_weight: 6.0
+    patterns:
+    - \bvisit\b
+    - \bbook\b
+    - \bdownload\b
+    - \bjoin\b
+    - \bsubscribe\b
+    - \bexplore\b
+    - \bcall\b
+    - \bbring the problem\b
+    - \blet[’']s\b
+    - \blearn more\b
+  warning:
+    base_weight: 5.0
+    patterns:
+    - \bwarning\b
+    - \bdanger\b
+    - \brisk\b
+    - \bavoid\b
+    - \bdo not\b
+    - \bdon[’']t\b
+    - \bmust not\b
+  emphasis:
+    base_weight: 1.0
+    patterns: []
+  conditional:
+    base_weight: 5.0
+    patterns:
+    - \bif\b
+    - \bunless\b
+    - \bwhen\s+[^,.!?]{1,90},\s+(?:we|you|it|i|they|the system)\s+(?:should|can|must|will|need|know|use|change|understand)\b
+structural_bonuses:
+  question_mark:
+    relation: question
+    weight: 4.0
+  colon:
+    relation: list
+    weight: 1.5
+  three_or_more_comma_items:
+    relation: list
+    weight: 3.0
+  number_token:
+    relation: quantity
+    weight: 3.0
+  paired_connector:
+    relation: contrast
+    weight: 2.0
+speech_acts:
+  instruction:
+  - ^\s*(?:do|make|use|take|bring|start|choose|avoid|remember)\b
+  question:
+  - \?$
+  invitation:
+  - \b(?:join|visit|book|explore|bring|let[’\']s)\b
+  warning:
+  - \b(?:warning|danger|risk|avoid|must not|do not)\b
+  statement:
+  - .+
+sensitive_terms:
+- \bdiagnos(?:is|ed)\b
+- \bautis(?:m|tic)\b
+- \badhd\b
+- \btrauma\b
+- \bdeath\b
+- \bviolence\b
+stopwords:
+- a
+- an
+- and
+- are
+- as
+- at
+- be
+- been
+- but
+- by
+- for
+- from
+- had
+- has
+- have
+- he
+- her
+- here
+- him
+- his
+- i
+- if
+- in
+- into
+- is
+- it
+- its
+- me
+- my
+- of
+- 'on'
+- or
+- our
+- she
+- so
+- that
+- the
+- their
+- them
+- there
+- these
+- they
+- this
+- those
+- through
+- to
+- was
+- we
+- were
+- what
+- when
+- where
+- which
+- who
+- why
+- will
+- with
+- you
+- your

@@ -1,0 +1,43 @@
+LAVC — QUICK START
+==================
+
+1. Install Python 3.10+, FFmpeg/FFprobe, and Chromium.
+2. In this folder:
+
+   python -m venv .venv
+   source .venv/bin/activate
+   pip install -e .
+   playwright install chromium
+
+3. Check dependencies and compile the included deterministic demo:
+
+   laka-video doctor
+   laka-video compile examples/demo/project.yml
+
+4. Open:
+
+   examples/demo/build/preview.html
+
+5. Read build/decision-report.md to see why every visual and animation won.
+
+6. Render an MP4:
+
+   laka-video render examples/demo/project.yml --quality draft
+
+To use your own audio, copy examples/demo, replace audio.wav and subtitles.srt,
+then edit project.yml. For semantic infographic selection, supply an SRT transcript.
+Audio-only mode produces truthful rhythm/energy visuals without guessing meaning.
+
+Inline exact-control example:
+
+[[LAKA relation=transformation infographic=transformation_arrow left="Pain" right="Project" headline="Turn pain into projects" motion=transform]]
+
+No language model, image generator, or cloud service is called.
+
+Create your own project in one command:
+
+   laka-video init my-video --audio narration.mp3 --transcript narration.srt --mode directed
+
+Compile with no transcript (rhythm and structure only):
+
+   laka-video compile examples/audio-only/project.yml

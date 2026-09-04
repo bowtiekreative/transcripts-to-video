@@ -1,0 +1,33 @@
+project:
+  id: deterministic-demo
+  title: LAVC Deterministic Demo
+  seed: 33
+
+source:
+  audio: audio.wav
+  transcript: subtitles.srt
+  mode: directed
+  music: null
+
+content:
+  speaker: LAKA Audio-to-Visual Compiler
+  destination: example.com
+
+brand:
+  preset: ../../grammar/brand.example.yml
+
+output:
+  directory: build
+  aspect: "9:16"
+  width: 540
+  height: 960
+  fps: 24
+  tail_seconds: 1.5
+  captions: karaoke
+  copy_media: true
+
+rules:
+  min_scene_seconds: 3.5
+  target_scene_seconds: 7.0
+  max_scene_seconds: 11.0
+  max_words_on_screen: 18
