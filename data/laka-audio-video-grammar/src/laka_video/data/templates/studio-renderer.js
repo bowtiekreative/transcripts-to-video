@@ -266,12 +266,30 @@
   // line for a phrase-level negation states the opposite of the sentence.
   // Congruent beats none beats incongruent: when the target is unknown, the
   // negation is recorded in the storyboard and left undrawn.
+  // Predicate negation, in the words that actually carry it.
+  const NEGATION_MARKER = /\b(?:not|never|no longer|cannot|can't|won't|didn't|doesn't|isn't|aren't|don't)\b/i;
+
+  function carriesNegation(scene, value, side) {
+    if (!scene.semantics?.negation) return false;
+    // The marker usually survives in the span, but pair extraction strips it:
+    // "We did not rebuild it by hand" becomes the panel "Rebuild it by hand".
+    // In a "not X, but Y" contrast the left panel IS X, which is the half being
+    // rejected, so the structure identifies the target when the words no longer
+    // do. Anything else needs the marker present, because guessing which half a
+    // negation lands on would state the opposite of the sentence.
+    if (NEGATION_MARKER.test(String(value || ""))) return true;
+    const contrast = String(scene.event?.direction || "") === "indirect_opposite";
+    return contrast && side === "left";
+  }
+
   function strikeThrough(scene, p, target) {
     const negation = scene.semantics?.negation;
     if (!negation || !target) return "";
     const draw = revealAmount(p, scene, 620, 420);
     if (draw <= 0.001) return "";
-    return `<div style="position:absolute;left:0;top:52%;height:${px(.3 * U)};width:${pct(draw)};background:${colors.danger};"></div>`;
+    // The object is shown first and struck after — the two-step the reader
+    // performs anyway. Striking from nothing communicates nothing.
+    return `<div style="position:absolute;left:0;right:0;top:50%;height:${px(.3 * U)};background:${colors.danger};transform-origin:0 50%;transform:scaleX(${draw.toFixed(4)});"></div>`;
   }
 
   // Gestalt common fate: 60-120ms reads as ONE group building, and the total
@@ -571,11 +589,14 @@
         });
         // Cards hug their type. A card taller than its content is a hollow box,
         // and the system has no hollow boxes in it.
-        const panel = (index, panelLabel, delayMs, hot) =>
-          `<div style="${frameHolds(scene) ? heldStyle(p, scene) : revealStyle(p, scene, delayMs)}display:flex;flex-direction:column;justify-content:center;gap:${px(1.6 * U)};padding:${px(pad)};border-radius:${px(1.6 * U)};background:${hot ? colors.raised : colors.surface};${certaintyBorder(scene, hot ? colors.accent : colors.hairSoft)}">
+        const panel = (index, panelLabel, delayMs, hot) => {
+          const value = index === 0 ? P.left : P.right;
+          const struck = carriesNegation(scene, value, index === 0 ? "left" : "right");
+          return `<div style="${frameHolds(scene) ? heldStyle(p, scene) : revealStyle(p, scene, delayMs)}position:relative;display:flex;flex-direction:column;justify-content:center;gap:${px(1.6 * U)};padding:${px(pad)};border-radius:${px(1.6 * U)};background:${hot ? colors.raised : colors.surface};${certaintyBorder(scene, hot ? colors.accent : colors.hairSoft)}">
             <div style="font:600 ${px(MICRO_SIZE)}/1 ${font};letter-spacing:.12em;text-transform:uppercase;color:${hot ? colors.accent : colors.muted};">${esc(String(panelLabel).toUpperCase())}</div>
-            <div style="font:600 ${px(fit.size)}/${fit.leading} ${font};letter-spacing:-.03em;color:${colors.text};">${esc(fit.wrapped[index].join(" "))}</div>
+            <div style="position:relative;font:600 ${px(fit.size)}/${fit.leading} ${font};letter-spacing:-.03em;color:${colors.text};">${esc(fit.wrapped[index].join(" "))}${struck ? strikeThrough(scene, p, value) : ""}</div>
           </div>`;
+        };
         const arrow = `<div style="height:${px(bridgeH)};display:flex;align-items:center;gap:${px(1.6 * U)};">
           <div style="height:${px(.34 * U)};width:${px(band.width * 0.24 * bridge)};background:${colors.accent};"></div>
           <div style="opacity:${bridge.toFixed(4)};font:600 ${px(3.8 * U)}/1 ${font};color:${colors.accent};">&#8594;</div></div>`;

@@ -116,3 +116,18 @@ def test_the_budget_reports_rather_than_breaking_a_sentence():
     payload = {"headline": "I am a cognitive architect and innovation strategist"}
     fit_payload_to_budget(payload, payload["headline"], 3.0, PERCEPTION)
     assert payload["headline"] == "I am a cognitive architect and innovation strategist"
+
+
+def test_events_restating_the_headline_are_dropped():
+    """One scene showed 29 words for 21 spoken this way — the headline with a
+    rail drawn down the side of it."""
+    payload = {
+        "headline": "When a rule helps, we should understand why",
+        "events": [
+            {"event": "When a rule helps, we should understand why"},
+            {"event": "When the situation changes, we should know what to change"},
+        ],
+    }
+    removed = dedupe_payload(payload)
+    assert any("events" in r for r in removed)
+    assert len(payload.get("events", [])) == 1

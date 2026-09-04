@@ -292,7 +292,15 @@ def apply_composition(
     expected = duration / max(target_seconds, 0.1)
     low, high = expected * (1 - tolerance), expected * (1 + tolerance)
 
+    # Reported, not warned about: a compiler forbidden from paraphrasing cannot
+    # move this number without breaking its own determinism guarantee.
+    shares = []
+    for scene in scenes:
+        budget = scene.get("reading_budget") or {}
+        if budget.get("spoken_words"):
+            shares.append(budget.get("speech_share", 0.0))
     return {
+        "speech_share_mean": round(sum(shares) / len(shares), 3) if shares else 0.0,
         "scene_count": len(scenes),
         "expected_scene_count": round(expected, 1),
         "scene_count_in_band": low <= len(scenes) <= high,

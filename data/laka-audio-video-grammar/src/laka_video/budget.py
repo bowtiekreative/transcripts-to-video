@@ -139,6 +139,22 @@ def dedupe_payload(payload: dict[str, Any]) -> list[str]:
             payload.pop(key)
             removed.append(f"{key}: restates the headline")
 
+    # Event text that restates the headline is the headline with a rail drawn
+    # down the side of it. One scene showed 29 words for 21 spoken this way.
+    events = payload.get("events")
+    if isinstance(events, list) and payload.get("headline"):
+        kept_events = [
+            e for e in events
+            if not _echoes(e.get("event") if isinstance(e, dict) else e, payload["headline"])
+        ]
+        if len(kept_events) != len(events):
+            if kept_events:
+                payload["events"] = kept_events
+                removed.append("events: dropped entries restating the headline")
+            else:
+                payload.pop("events")
+                removed.append("events: entirely restated the headline")
+
     # A node or item that restates the hub or the headline is not a peer.
     for key in ("nodes", "items", "children"):
         value = payload.get(key)

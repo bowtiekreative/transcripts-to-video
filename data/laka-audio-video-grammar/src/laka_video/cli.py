@@ -45,6 +45,21 @@ def cmd_render(args: argparse.Namespace) -> int:
     output = render_mp4(paths["preview"], paths["storyboard"], args.output, args.quality, progress)
     _print_paths(paths)
     print(f"video        {output}")
+
+    # Both cuts from one compile. They are the same edit — same scenes, same
+    # boundaries, same words — so publishing them as a pair means an audience
+    # that needs reduced motion gets the film rather than an apology.
+    if getattr(args, "both_cuts", False) and not getattr(args, "reduced_motion", False):
+        print("render       reduced-motion cut")
+        reduced_paths = compile_project(args.project, args.grammar, reduced_motion=True)
+        default_name = Path(output).with_name(Path(output).stem + "-reduced-motion.mp4")
+        reduced_output = render_mp4(
+            reduced_paths["preview"], reduced_paths["storyboard"],
+            str(default_name), args.quality, progress,
+        )
+        print(f"video        {reduced_output}")
+        # Leave the standard cut on disk as the canonical build.
+        compile_project(args.project, args.grammar, reduced_motion=False)
     return 0
 
 
@@ -148,6 +163,8 @@ def build_parser() -> argparse.ArgumentParser:
     render_p.add_argument("--strict", action="store_true")
     render_p.add_argument("--reduced-motion", action="store_true",
                           help="Keep every duration, drop every translation (WCAG 2.3.3)")
+    render_p.add_argument("--both-cuts", action="store_true",
+                          help="Render the standard cut and a reduced-motion cut of the same edit")
     render_p.set_defaults(func=cmd_render)
 
     inspect_p = sub.add_parser("inspect-audio", help="Print deterministic acoustic analysis")

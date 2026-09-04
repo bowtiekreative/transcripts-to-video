@@ -203,8 +203,43 @@ def syllables(word: str) -> int:
     return max(1, count)
 
 
+# Flesch-Kincaid assumes running prose. Applied to a four-word label it reports
+# nonsense — "Difficult experiences -> Constructive action" scores grade 21
+# because the formula reads four polysyllabic words as one enormous sentence.
+# A headline is not prose, so it gets the measure that actually applies to it.
+PROSE_MIN_WORDS = 8
+
+
+def lexical_density(text: str) -> float | None:
+    """Mean syllables per word: the part of reading difficulty a label can have.
+
+    A short label has no sentence structure to measure, but it can still be
+    built from words most people have to decode rather than recognise.
+    """
+    tokens = re.findall(r"[A-Za-z][A-Za-z'-]*", str(text or ""))
+    if not tokens:
+        return None
+    return sum(syllables(t) for t in tokens) / len(tokens)
+
+
+def reading_difficulty(text: str) -> tuple[str, float] | None:
+    """Return (measure, value) using the instrument that fits the text length."""
+    tokens = re.findall(r"[A-Za-z][A-Za-z'-]*", str(text or ""))
+    if not tokens:
+        return None
+    if len(tokens) >= PROSE_MIN_WORDS:
+        grade = flesch_kincaid_grade(text)
+        return ("grade", grade) if grade is not None else None
+    density = lexical_density(text)
+    return ("syllables_per_word", density) if density is not None else None
+
+
 def flesch_kincaid_grade(text: str) -> float | None:
-    """US grade level. nd-ux targets grade 6-8 for plain language."""
+    """US grade level. nd-ux targets grade 6-8 for plain language.
+
+    Only meaningful on running prose of at least PROSE_MIN_WORDS; use
+    reading_difficulty() to pick the right instrument automatically.
+    """
     sentences = [s for s in re.split(r"[.!?]+", str(text or "")) if s.strip()]
     tokens = re.findall(r"[A-Za-z][A-Za-z'-]*", str(text or ""))
     if not tokens or not sentences:

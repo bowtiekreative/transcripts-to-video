@@ -123,3 +123,30 @@ def test_empty_text_has_no_grade():
 def test_luminance_ordering_is_sane():
     assert relative_luminance(parse_colour("#FFFFFF")) > relative_luminance(parse_colour("#808080"))
     assert relative_luminance(parse_colour("#808080")) > relative_luminance(parse_colour("#000000"))
+
+
+# --------------------------------------------------- the right instrument ---
+def test_a_short_label_is_not_measured_as_prose():
+    """Flesch-Kincaid on a four-word label reports grade 21 for
+    "Difficult experiences -> Constructive action", which is a property of the
+    formula, not of the copy."""
+    from laka_video.accessibility import reading_difficulty
+
+    measure, _ = reading_difficulty("Difficult experiences Constructive action")
+    assert measure == "syllables_per_word"
+
+
+def test_running_prose_is_measured_as_prose():
+    from laka_video.accessibility import reading_difficulty
+
+    measure, value = reading_difficulty(
+        "All Inclusive Websites focuses on accessibility-first web design for everyone"
+    )
+    assert measure == "grade" and value > 12
+
+
+def test_lexical_density_separates_plain_from_technical():
+    from laka_video.accessibility import lexical_density
+
+    assert lexical_density("We start with what is happening") < 1.6
+    assert lexical_density("Organisational accessibility methodologies") > 4.0

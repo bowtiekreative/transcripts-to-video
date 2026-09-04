@@ -76,6 +76,8 @@ Every scene emits an event: who + what + where + when + why + how, the seven uni
 
 **`signal: false` forces D0.** Discourse filler carries a caption and nothing else. This is the coherence principle with a switch on it.
 
+`image_schemas.yml` states its own coverage in a header comment: twelve schemas are drawn, negation is drawn as a strike over the panel it lands on rather than as a template, and five (blockage, merging, splitting, iteration, full–empty) still fall back to congruent typography. That fallback is correct behaviour, not a placeholder — a wrong graphic is measurably worse than no graphic — but it is listed so the gap stays visible.
+
 Where EventMath and `image_schemas.yml` disagree, EventMath wins: the schema says what shape a relation has, the triple says what the sentence is doing, and the triple is the vocabulary the rest of the stack already speaks.
 
 ## Accessibility
@@ -85,7 +87,8 @@ This compiler puts a neurodivergent speaker's own words on screen, so "reduce co
 - **Contrast is computed, not assumed.** `audit_contrast` runs WCAG arithmetic over the pairs the renderer actually draws, not over the palette in the abstract — that would pass colours that never touch each other. A translucent colour is composited over its background first: a hairline at 8% alpha does not have the contrast of white, and scoring it as white passes a line nobody can see.
 - **Vestibular limits are checked per scene** — camera scale rate, total scale change, and a flicker check on very short scenes.
 - **`--reduced-motion` is a cut, not a second edit.** Same scenes, same boundaries, same words, every duration kept and every translation dropped (WCAG 2.3.3). The dolly goes too; a loop operator becomes static. Verified by comparing both cuts at the same timestamp: identical element count, identical text, transforms 1 → 0.
-- **Plain language** is measured with Flesch-Kincaid against the grade 6-8 target.
+- **Plain language** uses the instrument that fits the text. Flesch-Kincaid assumes running prose and reports grade 21 for "Difficult experiences → Constructive action", which is a property of the formula rather than the copy. Prose of eight words or more gets a grade; anything shorter gets mean syllables per word, which is the part of reading difficulty a label can actually have.
+- **`--both-cuts`** renders the standard and reduced-motion versions from one compile, so an audience that needs reduced motion gets the film rather than an apology.
 
 A gap is only reported where it is a hole rather than unstated context. A spoken monologue has no `where`, and saying so on every scene buries the findings that matter; the sharp case is a scene whose own LENS is the missing field — it is *about* the when, and the when was never said.
 

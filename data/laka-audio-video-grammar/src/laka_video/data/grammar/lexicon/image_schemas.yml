@@ -12,6 +12,17 @@ name: LAVC Image Schemas
 # `needs_element` names one the grammar does not yet carry; the selector treats
 # a schema with only `needs_element` as unrealisable and falls back per §11 of
 # SEMANTIC_MAPPING.md (congruent > none > incongruent).
+#
+# COVERAGE, stated plainly so nobody has to infer it from the code:
+#   drawn      container, source_path_goal, path_open, link, force, counterforce,
+#              scale, balance, centre_periphery, cycle, near_far, part_whole
+#              (each via the `template` named below)
+#   drawn as   negation — struck over the panel it lands on, not as a template
+#   fallback   blockage, merging, splitting, iteration, full_empty
+#              (blocked_arrow, merge_branch, accumulation, progress_bar)
+# The five in fallback render as congruent typography, which is the correct
+# behaviour rather than a placeholder: a wrong graphic is measurably worse than
+# no graphic. They are listed so the gap is visible, not so it looks solved.
 
 schemas:
   container:

@@ -4,7 +4,7 @@ import math
 from collections import Counter
 from typing import Any
 
-from .accessibility import audit_contrast, audit_motion, flesch_kincaid_grade
+from .accessibility import audit_contrast, audit_motion, reading_difficulty
 from .ordering import chunk_count, item_count, motion_events_for, scan_seconds, visible_words_for
 from .utils import word_count
 
@@ -185,19 +185,31 @@ def _perception_checks(
                                              "Headline repeats the caption on screen at the same moment.", sid))
                         break
 
-        # §1.4 on-screen words are a fraction of spoken words
+        # §1.4 says on-screen words should be a fraction of spoken words. That
+        # assumes the frame PARAPHRASES. This compiler is built not to — exact
+        # source spans, no inference — so a scene stating a short claim will sit
+        # near 100% with nothing to remove, and warning about it every time is
+        # advice nobody can take without breaking the determinism guarantee.
+        # What IS actionable is a frame showing MORE words than were spoken:
+        # that is duplication or invention, not compression.
         spoken = word_count(str(scene.get("text", "")))
-        if spoken and visible / spoken > share_max:
-            issues.append(_issue("INFO", "perception.transcription",
-                                 f"{visible} of {spoken} spoken words are on screen "
-                                 f"({visible / spoken:.0%} > {share_max:.0%}); the frame is transcribing, not composing.", sid))
+        if spoken and visible > spoken:
+            issues.append(_issue("WARNING", "perception.over_transcription",
+                                 f"{visible} words on screen against {spoken} spoken; a frame cannot carry more "
+                                 f"than was said without repeating or inventing.", sid))
 
         # nd-ux: plain language. Grade 6-8 is the target across neurotypes, and
         # a headline at grade 20 excludes people this speaker is speaking to.
-        grade = flesch_kincaid_grade(str(payload.get("headline") or ""))
-        if grade is not None and grade > 12:
-            issues.append(_issue("INFO", "access.reading_level",
-                                 f"Headline reads at grade {grade:.0f}; the plain-language target is 6-8.", sid))
+        measured = reading_difficulty(str(payload.get("headline") or ""))
+        if measured:
+            measure, value = measured
+            if measure == "grade" and value > 12:
+                issues.append(_issue("INFO", "access.reading_level",
+                                     f"Headline reads at grade {value:.0f}; the plain-language target is 6-8.", sid))
+            elif measure == "syllables_per_word" and value > 3.0:
+                issues.append(_issue("INFO", "access.lexical_density",
+                                     f"Headline averages {value:.1f} syllables per word; short labels built from "
+                                     f"words people decode rather than recognise are hard for the same readers.", sid))
 
     # ---- accessibility, computed from the palette actually drawn ---------
     for finding in audit_contrast(storyboard.get("brand", {}) or {}, perception):
