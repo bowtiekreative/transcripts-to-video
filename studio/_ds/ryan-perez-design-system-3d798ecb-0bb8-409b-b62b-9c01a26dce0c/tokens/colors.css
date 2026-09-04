@@ -1,0 +1,56 @@
+:root{
+/* Base palette — everything blue-shifted, nothing pure black/white */
+--rp-canvas:#07090D;
+--rp-surface:#1A1D24;
+--rp-surface-2:#23262F;
+--rp-heading:#F5F7FA;
+--rp-body:#C5C7CE;
+--rp-muted:#8A8D96;
+--rp-accent:#3F6EE9;
+--rp-accent-hover:#5B84EE;
+--rp-accent-press:#3259C4;
+--rp-on-accent:#F5F7FA;
+/* Semantic aliases */
+--bg-page:var(--rp-canvas);
+--surface-card:var(--rp-surface);
+--surface-raised:var(--rp-surface-2);
+--text-heading:var(--rp-heading);
+--text-body:var(--rp-body);
+--text-muted:var(--rp-muted);
+--text-link:var(--rp-accent-hover);
+--cta:var(--rp-accent);
+/* Depth from light, not shadows */
+--hairline:rgba(245,247,250,0.15);
+--hairline-soft:rgba(245,247,250,0.08);
+--backlight:radial-gradient(60% 50% at 50% 100%,rgba(255,255,255,0.07),transparent 70%); /* @kind other */
+--backlight-top:radial-gradient(60% 50% at 50% 0%,rgba(255,255,255,0.07),transparent 70%); /* @kind other */
+--glass-bg:rgba(7,9,13,0.8);
+--glass-blur:blur(16px); /* @kind other */
+}
+/* Light mode — set data-theme="light" on <html> or <body>, or wrap a section in .rp-light.
+   Cool paper, blue-shifted — never pure white. Depth flips: canvas is the tint, cards are the light. */
+[data-theme="light"],.rp-light{
+--rp-canvas:#EDEFF4;
+--rp-surface:#F8F9FC;
+--rp-surface-2:#FFFFFF;
+--rp-heading:#10131A;
+--rp-body:#3B3F49;
+--rp-muted:#6B6F79;
+--rp-accent:#3F6EE9;
+--rp-accent-hover:#3259C4;
+--rp-accent-press:#27479E;
+--rp-on-accent:#F5F7FA;
+--bg-page:var(--rp-canvas);
+--surface-card:var(--rp-surface);
+--surface-raised:var(--rp-surface-2);
+--text-heading:var(--rp-heading);
+--text-body:var(--rp-body);
+--text-muted:var(--rp-muted);
+--text-link:var(--rp-accent);
+--cta:var(--rp-accent);
+--hairline:rgba(16,19,26,0.16);
+--hairline-soft:rgba(16,19,26,0.08);
+--backlight:radial-gradient(60% 50% at 50% 100%,rgba(16,19,26,0.05),transparent 70%); /* @kind other */
+--backlight-top:radial-gradient(60% 50% at 50% 0%,rgba(16,19,26,0.05),transparent 70%); /* @kind other */
+--glass-bg:rgba(245,247,250,0.8);
+}

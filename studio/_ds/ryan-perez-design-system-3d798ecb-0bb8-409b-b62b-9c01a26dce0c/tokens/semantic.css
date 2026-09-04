@@ -1,0 +1,19 @@
+:root{
+/* Status colours — lifted from the LAKA SEO / rules systems, where a rule row's
+   colour IS its verdict. Accent doubles as "correct / do this". */
+--rp-good:#3FA46A;
+--rp-warn:#C98A2E;
+--rp-bad:#D8574F;
+--rp-good-line:rgba(63,164,106,0.3);
+--rp-warn-line:rgba(201,138,46,0.28);
+--rp-bad-line:rgba(216,87,79,0.3);
+--rp-accent-line:rgba(63,110,233,0.28);
+/* Semantic aliases */
+--text-good:var(--rp-good);
+--text-warn:var(--rp-warn);
+--text-bad:var(--rp-bad);
+--rule-do:var(--rp-accent);
+--rule-dont:var(--rp-bad);
+--rule-pass:var(--rp-good);
+--rule-caution:var(--rp-warn);
+}

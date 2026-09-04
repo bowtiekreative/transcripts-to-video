@@ -1,0 +1,19 @@
+:root{
+/* Everything fades up into view; lists stagger; nothing simply appears */
+--ease-out:cubic-bezier(0.16,1,0.3,1); /* @kind other */
+--duration-fast:200ms; /* @kind other */
+--duration-base:600ms; /* @kind other */
+--duration-slow:900ms; /* @kind other */
+--stagger:90ms; /* @kind other */
+--rise:24px;
+/* Multiplane parallax: layers travel at different rates (Disney 1937) */
+--parallax-back:0.9; /* @kind other */
+--parallax-near:0.95; /* @kind other */
+--parallax-front:1.1; /* @kind other */
+--media-bleed:1.08; /* @kind other */
+/* Cinema hero ratios: wider than 2:1 reads as a movie frame, not a photo */
+--ratio-hero:3/1; /* @kind other */
+--ratio-hero-tall:2/1; /* @kind other */
+}
+@keyframes rp-fade-up{from{opacity:0;transform:translateY(var(--rise,24px))}to{opacity:1;transform:translateY(0)}}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:0.01ms!important;transition-duration:0.01ms!important}}

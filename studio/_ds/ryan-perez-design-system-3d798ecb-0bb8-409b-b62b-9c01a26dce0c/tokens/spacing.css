@@ -1,0 +1,18 @@
+:root{
+/* Layout: 1200px container, 12 cols, 32px gutters, 128px between sections */
+--container:1200px;
+--grid-cols:12; /* @kind other */
+--gutter:32px;
+--section-gap:128px;
+/* Spacing scale */
+--space-1:4px;--space-2:8px;--space-3:12px;--space-4:16px;--space-5:24px;--space-6:32px;--space-7:48px;--space-8:64px;--space-9:96px;--space-10:128px;
+/* Radius language: buttons are pills, everything else curves with its size */
+--radius-btn:999px;
+--radius-input:8px;
+--radius-chip:8px;
+--radius-card:16px;
+--radius-panel:24px;
+--radius-media:32px;
+--radius-media-lg:48px;
+--radius-pill:999px;
+}

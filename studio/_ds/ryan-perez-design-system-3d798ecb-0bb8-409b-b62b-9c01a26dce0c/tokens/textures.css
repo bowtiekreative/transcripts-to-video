@@ -1,0 +1,23 @@
+:root{
+/* One LUT over everything: low contrast, slight desaturation, cool shadows */
+--grade-filter:saturate(0.85) contrast(0.92); /* @kind other */
+--grade-tint:linear-gradient(rgba(23,32,52,0.25),rgba(23,32,52,0.25)); /* @kind other */
+/* Film grain overlay — use at 5-7% opacity, blend overlay */
+--grain-url:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E"); /* @kind other */
+--grain-opacity:0.06; /* @kind other */
+/* Legibility infrastructure disguised as art direction: type-side flood */
+--flood-canvas:linear-gradient(90deg,rgba(7,9,13,0.92) 0%,rgba(7,9,13,0.75) 35%,rgba(7,9,13,0.1) 70%,transparent 100%); /* @kind other */
+--flood-accent:linear-gradient(90deg,rgba(50,89,196,0.95) 0%,rgba(63,110,233,0.8) 35%,rgba(63,110,233,0.12) 72%,transparent 100%); /* @kind other */
+/* Bottom protection for baked-in poster titles */
+--protect-bottom:linear-gradient(180deg,transparent 40%,rgba(7,9,13,0.35) 70%,rgba(7,9,13,0.85) 100%); /* @kind other */
+/* Gradient × image: saturated wash climbing from the type corner into the photo */
+--wash-corner:linear-gradient(38deg,rgba(50,89,196,0.96) 0%,rgba(63,110,233,0.75) 26%,rgba(63,110,233,0.28) 52%,transparent 72%); /* @kind other */
+/* Full-frame accent tint for duotone blends (use with mix-blend-mode:color) */
+--tint-accent:linear-gradient(rgba(63,110,233,0.5),rgba(63,110,233,0.5)); /* @kind other */
+}
+/* Light mode: floods go paper-white; over-image scrims (protect-bottom, wash, tint) stay dark by design */
+[data-theme="light"],.rp-light{
+--grade-tint:linear-gradient(rgba(23,32,52,0.12),rgba(23,32,52,0.12));
+--grain-opacity:0.04; /* @kind other */
+--flood-canvas:linear-gradient(90deg,rgba(237,239,244,0.94) 0%,rgba(237,239,244,0.78) 35%,rgba(237,239,244,0.12) 70%,transparent 100%); /* @kind other */
+}

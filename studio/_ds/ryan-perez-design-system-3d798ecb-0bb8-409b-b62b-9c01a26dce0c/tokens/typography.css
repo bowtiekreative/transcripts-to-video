@@ -1,0 +1,18 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
+:root{
+/* One font, two weights. Drama from size + tracking, not font choices. */
+--font-core:'Inter',-apple-system,'Segoe UI',sans-serif;
+--weight-regular:400;
+--weight-semibold:600;
+/* Huge + tight */
+--text-h1:80px;--track-h1:-0.05em;--leading-h1:1.02;
+--text-h2:56px;--track-h2:-0.04em;--leading-h2:1.08;
+--text-h3:32px;--track-h3:-0.02em;--leading-h3:1.2;
+--text-h4:22px;--track-h4:-0.01em;--leading-h4:1.3;
+/* Body */
+--size-body:16px;--leading-body:1.7;
+--text-body-lg:18px;
+--text-small:14px;
+/* Tiny + wide */
+--text-micro:12px;--track-micro:0.12em;
+}

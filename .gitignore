@@ -1,1 +1,8 @@
 .env
+# Working media, not source. The Studio drops uploads next to its sources and
+# they run to gigabytes; the element library and canvases are what matter.
+studio/uploads/
+template/uploads/
+studio/.thumbnail
+template/.thumbnail
+*.zip
