@@ -63,6 +63,21 @@ def test_audio_upload_creates_a_queued_local_job(tmp_path: Path):
     assert job["narration_name"] == "voice.wav"
 
 
+def test_default_upload_uses_full_film_format(tmp_path: Path):
+    manager = QueuedManager(tmp_path)
+    app = create_app(manager=manager)
+
+    response = app.test_client().post(
+        "/jobs",
+        data={"files": (io.BytesIO(b"audio fixture"), "voice.wav")},
+        headers={"Accept": "application/json"},
+    )
+
+    assert response.status_code == 202
+    assert response.json["aspect"] == "16:9"
+    assert response.json["quality"] == "standard"
+
+
 def test_health_check_bypasses_configured_authentication(tmp_path: Path, monkeypatch):
     monkeypatch.setenv("TRANSCRIBE_USERNAME", "operator")
     monkeypatch.setenv("TRANSCRIBE_PASSWORD", "secret")

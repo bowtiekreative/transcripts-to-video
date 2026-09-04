@@ -68,8 +68,8 @@ class JobManager:
     def create_job(
         self,
         files: Iterable[FileStorage],
-        aspect: str = "9:16",
-        quality: str = "draft",
+        aspect: str = "16:9",
+        quality: str = "standard",
     ) -> dict[str, Any]:
         narration, transcript = self._classify(files)
         if aspect not in ASPECTS:
@@ -185,7 +185,7 @@ class JobManager:
             )
             story = json.loads(paths["storyboard"].read_text(encoding="utf-8"))
             composition = story["composition"]
-            render_scale = 0.5 if job["quality"] == "draft" else 1.0
+            render_scale = 1.0
             rendered_width = max(2, int(round(composition["width"] * render_scale / 2) * 2))
             rendered_height = max(2, int(round(composition["height"] * render_scale / 2) * 2))
             self._update(
@@ -301,8 +301,8 @@ def create_app(
         try:
             job = job_manager.create_job(
                 request.files.getlist("files"),
-                aspect=request.form.get("aspect", "9:16"),
-                quality=request.form.get("quality", "draft"),
+                aspect=request.form.get("aspect", "16:9"),
+                quality=request.form.get("quality", "standard"),
             )
         except UploadError as exc:
             if request.accept_mimetypes.best == "application/json":

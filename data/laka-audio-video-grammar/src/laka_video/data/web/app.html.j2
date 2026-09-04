@@ -77,8 +77,8 @@
             <div class="field-group">
               <label class="field-label" for="aspect">Frame format</label>
               <select id="aspect" name="aspect">
+                <option value="16:9" selected>16:9 · Film (recommended)</option>
                 <option value="9:16">9:16 · Vertical</option>
-                <option value="16:9">16:9 · Landscape</option>
                 <option value="1:1">1:1 · Square</option>
                 <option value="4:5">4:5 · Portrait</option>
               </select>
@@ -86,8 +86,8 @@
             <div class="field-group">
               <label class="field-label" for="quality">Render quality</label>
               <select id="quality" name="quality">
-                <option value="draft">Draft · 12 fps</option>
-                <option value="standard">Standard · 30 fps</option>
+                <option value="standard" selected>Standard · full-size, 30 fps</option>
+                <option value="draft">Proof · full-size, 12 fps</option>
                 <option value="high">High · 30 fps</option>
               </select>
             </div>

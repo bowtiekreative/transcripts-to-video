@@ -226,9 +226,18 @@ def _headline(text: str, stopwords: set[str], relation: str, payload: dict[str, 
         if question:
             return question
 
+    if relation in {"list", "sequence", "hierarchy", "network", "cycle"} and ":" in text:
+        lead = _clean_fragment(text.split(":", 1)[0])
+        if lead:
+            return " ".join(lead.split()[:7])
+    if relation == "cta":
+        lead = _clean_fragment(re.split(r"[,;:—–]", text, maxsplit=1)[0])
+        if lead:
+            return " ".join(lead.split()[:7])
+
     first = _sentence_parts(text)[0] if _sentence_parts(text) else _clean_fragment(text)
     first = _CONNECTOR_TRIM.sub("", first).strip()
-    if word_count(first) <= 9:
+    if word_count(first) <= 7:
         return first
     tokens = first.split()
     # Start at the first content-bearing token, then retain an exact source span.
@@ -238,11 +247,7 @@ def _headline(text: str, stopwords: set[str], relation: str, payload: dict[str, 
         if normalized and normalized not in stopwords:
             start = i
             break
-    span = tokens[start:start + 9]
-    headline = " ".join(span).rstrip(" ,;:")
-    if start + 9 < len(tokens):
-        headline += "…"
-    return _clean_fragment(headline)
+    return _clean_fragment(" ".join(tokens[start:start + 7]).rstrip(" ,;:"))
 
 
 class TextRuleEngine:
@@ -423,7 +428,8 @@ class TextRuleEngine:
         if relation == "cta":
             action_match = re.search(r"\b(visit|book|download|join|subscribe|explore|call|bring|learn more)\b", text, flags=re.IGNORECASE)
             domain_match = re.search(r"\b(?:https?://)?(?:www\.)?[a-z0-9-]+(?:\.[a-z]{2,})(?:/[\w./?=&%-]*)?\b", text, flags=re.IGNORECASE)
-            payload["action"] = _clean_fragment(action_match.group(1)) if action_match else "Act"
+            # A CTA must come from the source. Do not invent an action label.
+            payload["action"] = _clean_fragment(action_match.group(1)) if action_match else ""
             if domain_match:
                 payload["destination"] = domain_match.group(0)
 

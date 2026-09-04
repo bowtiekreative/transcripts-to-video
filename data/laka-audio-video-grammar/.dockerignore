@@ -1,9 +1,8 @@
+.env
 .git
 .venv
-.laka
 .pytest_cache
 **/__pycache__
 **/*.pyc
 **/build
-examples/**/assets
-examples/**/*.mp4
+**/.laka

@@ -114,9 +114,14 @@ laka-video render examples/demo/project.yml --quality draft
 
 Quality presets:
 
-- `draft`: 12 fps and half resolution
+- `draft`: 12 fps at the selected full resolution
 - `standard`: project fps and full resolution
 - `high`: project fps, full resolution, lower H.264 CRF
+
+The web app defaults to a 1920×1080 film. Every compiled film uses the same
+cue-driven contract as the supplied reference projects: `CAPS` carries exact
+SRT timing, `OM_SCENES` carries named scene cues, and each frame is a pure
+function of time. See `TEMPLATE.md` for the regeneration recipe.
 
 ## Add deterministic author control
 
@@ -150,6 +155,7 @@ A sidecar override file can be used instead when the transcript must remain clea
 - `grammar/laka-video.ebnf` — formal grammar
 - `grammar/templates.yml` — infographic capabilities and compatibility weights
 - `grammar/motion.yml` — motion families expressed with LAKA variables
+- `TEMPLATE.md` — canonical SRT-to-film regeneration contract
 - `src/laka_video/` — deterministic compiler, linter, browser renderer, MP4 encoder, project scaffold, and decision reporter
 - `examples/audio-only/` — DSP-only operation with no transcript
 - `examples/ryan-reintroduction/` — the supplied reintroduction audio generalized through the grammar

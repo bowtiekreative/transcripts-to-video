@@ -161,10 +161,13 @@ def compile_project(project_path: str | Path, grammar_dir: str | Path | None = N
     brand_path = resolve_path(base_dir, brand_block.get("preset")) if brand_block.get("preset") else grammar / "brand.example.yml"
     brand = deep_merge(load_yaml(brand_path), {k: v for k, v in brand_block.items() if k != "preset"})
 
+    project_output = project_doc.get("output", {}) or {}
     aspect = str(output_cfg.get("aspect", "9:16"))
     default_width, default_height = _aspect_dimensions(aspect)
-    width = int(output_cfg.get("width") or default_width)
-    height = int(output_cfg.get("height") or default_height)
+    # Global defaults describe the default aspect only. They must not override
+    # the dimensions implied by a project's selected aspect ratio.
+    width = int(project_output.get("width") or default_width)
+    height = int(project_output.get("height") or default_height)
     fps = float(output_cfg.get("fps", 30))
     tail = float(output_cfg.get("tail_seconds", timing_cfg.get("tail_seconds", 2.0)))
     composition_duration = round(audio.duration + tail, 4)
@@ -293,6 +296,22 @@ def compile_project(project_path: str | Path, grammar_dir: str | Path | None = N
         "audio_analysis": audio.public_summary(),
         "captions": captions,
         "scenes": compiled_scenes,
+        "film": {
+            "engine": "cue-film-v1",
+            "scenes": [
+                {
+                    "name": "Opening" if index == 0 else "Close" if index == len(compiled_scenes) - 1 else f"{scene['primary_relation'].replace('_', ' ').title()} {index + 1:02d}",
+                    "at": scene["start"],
+                    "dur": scene["duration"],
+                    "desc": scene["payload"].get("headline") or scene["text"],
+                }
+                for index, scene in enumerate(compiled_scenes)
+            ],
+            "caps": [
+                {"at": cue.start, "until": cue.end, "text": cue.text}
+                for cue in cues
+            ],
+        },
     }
     storyboard = json_safe(storyboard)
     report = lint_storyboard(storyboard, defaults_runtime, template_library)

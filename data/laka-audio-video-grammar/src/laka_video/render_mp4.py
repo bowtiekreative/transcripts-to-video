@@ -37,7 +37,7 @@ def render_mp4(
     quality = quality.lower()
     if quality == "draft":
         fps = min(12.0, project_fps)
-        scale = 0.5
+        scale = 1.0
         crf = 25
         preset = "veryfast"
     elif quality == "high":

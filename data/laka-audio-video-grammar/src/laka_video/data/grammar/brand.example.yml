@@ -14,8 +14,8 @@ colors:
   hair_soft: rgba(255,255,255,0.08)
 type:
   family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif
-  weight_head: 650
-  weight_body: 420
+  weight_head: 600
+  weight_body: 400
   letter_spacing_head: -0.035em
 shape:
   radius_small: 10
