@@ -175,10 +175,19 @@ def _perception_checks(
                                  f"{report['accent_bleed_scenes']} full-bleed accent scenes; the budget is "
                                  f"{report['accent_budget']} at the conversion moment."))
         if not report.get("carrier_persistence_met", True):
-            issues.append(_issue("INFO", "rhythm.carrier_persistence",
-                                 f"Only {report.get('carrier_persistence', 0):.0%} of scenes evolve an existing "
-                                 f"object (target {report.get('carrier_persistence_min', 0.4):.0%}); the piece will "
-                                 f"read as slides rather than one argument."))
+            actual = report.get("carrier_persistence", 0)
+            possible = report.get("carrier_opportunities", 0)
+            target = report.get("carrier_persistence_min", 0.4)
+            if possible > actual + 0.05:
+                issues.append(_issue("WARNING", "rhythm.carrier_persistence",
+                                     f"{actual:.0%} of scenes evolve an existing object where {possible:.0%} could "
+                                     f"have without dropping an obligation (target {target:.0%})."))
+            else:
+                issues.append(_issue("INFO", "rhythm.carrier_material",
+                                     f"{actual:.0%} of scenes evolve an existing object against a {target:.0%} "
+                                     f"target, and only {possible:.0%} of cuts could without weakening a claim. "
+                                     f"The source changes subject and shape almost every scene; persistence would "
+                                     f"have to come from the edit, not the compiler."))
         if not report.get("scene_count_in_band", True):
             issues.append(_issue("INFO", "rhythm.scene_count",
                                  f"{report.get('scene_count')} scenes against an expected "

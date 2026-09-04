@@ -17,7 +17,12 @@ Order, all minimised:
     7.  visible_words
     8.  motion_events             gate: <= 2
     9.  layout_complexity
-    10. stable_hash               deterministic tiebreak
+    10. carrier_break             continue the object rather than rebuild it
+    11. stable_hash               deterministic tiebreak
+
+Position 10 matters: continuing the previous scene's geometry is preferred only
+among candidates that are already equally true and equally economical. It can
+never reach past a truth term, so persistence cannot buy a worse claim.
 """
 from __future__ import annotations
 
@@ -38,6 +43,19 @@ QUANTITY_CHANNEL: dict[str, str] = {
     "cycle": "angle",
     "network": "area",
     "hierarchy_tree": "area",
+}
+
+# Geometry families: two scenes in the same family draw the same visual object
+# with different content in it. Shared with composition.py.
+GEOMETRY_FAMILY: dict[str, str] = {
+    "title_card": "statement", "quote_focus": "statement", "question_card": "statement",
+    "definition_card": "statement", "warning_card": "statement", "cta_card": "statement",
+    "big_number": "statement",
+    "list_stack": "rows", "steps": "rows", "timeline": "rows", "funnel": "rows",
+    "condition_cards": "rows", "bar_chart": "rows",
+    "before_after": "pair", "comparison_split": "pair", "transformation_arrow": "pair",
+    "cause_effect": "pair", "problem_solution": "pair",
+    "network": "figure", "cycle": "figure", "hierarchy_tree": "figure",
 }
 
 # Templates that put an explicit number next to the mark. §8 of the sparseness
@@ -109,6 +127,7 @@ class OrderKey:
     visible_words: int
     motion_events: int
     layout_complexity: int
+    carrier_break: int
     tiebreak: str
 
     def as_tuple(self) -> tuple:
@@ -125,6 +144,7 @@ class OrderKey:
             self.visible_words,
             self.motion_events,
             self.layout_complexity,
+            self.carrier_break,
             self.tiebreak,
         )
 
@@ -140,6 +160,7 @@ class OrderKey:
             "visible_words": self.visible_words,
             "motion_events": self.motion_events,
             "layout_complexity": self.layout_complexity,
+            "carrier_break": self.carrier_break,
         }
 
 
@@ -507,6 +528,7 @@ def build_key(
     seed: Any,
     scene_id: str,
     template: dict[str, Any] | None = None,
+    previous_template: str | None = None,
 ) -> OrderKey:
     asserts_quantity = bool(getattr(semantics, "requires_numeric", False)) or bool(payload.get("series"))
     marks = marks_for(template_id, payload)
@@ -524,5 +546,7 @@ def build_key(
         visible_words=visible,
         motion_events=motion_events_for(template_id, payload),
         layout_complexity=_LAYOUT_COMPLEXITY.get(layout, 2),
+        carrier_break=0 if (previous_template and GEOMETRY_FAMILY.get(previous_template)
+                            and GEOMETRY_FAMILY.get(previous_template) == GEOMETRY_FAMILY.get(template_id)) else 1,
         tiebreak=stable_hash(seed, scene_id, template_id, layout),
     )

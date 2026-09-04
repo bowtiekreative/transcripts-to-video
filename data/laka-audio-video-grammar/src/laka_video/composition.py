@@ -12,6 +12,8 @@ from __future__ import annotations
 
 from typing import Any
 
+import re
+
 from .ordering import chunk_count, density_level, item_count
 
 _LADDER = ["D0", "D1", "D2", "D3"]
@@ -20,13 +22,98 @@ _LADDER = ["D0", "D1", "D2", "D3"]
 # allowed per piece, at the conversion moment.
 _ACCENT_BLEED = {"cta_card"}
 
-# Templates whose visual object can persist into the next scene and be mutated
-# rather than rebuilt from scratch.
-_CARRIER_TEMPLATES = {
-    "list_stack", "steps", "timeline", "funnel", "network", "cycle",
-    "hierarchy_tree", "bar_chart", "before_after", "comparison_split",
-    "transformation_arrow", "cause_effect", "problem_solution", "big_number",
+# Geometry families. Two scenes in the same family are drawing the SAME visual
+# object with different content in it — a rail being refilled, a pair of panels
+# being replaced, a hub gaining new spokes. That is what "appear, mutate,
+# transform, exit" means: the object persists even when the subject changes,
+# and a run of them reads as one argument rather than a stack of slides.
+from .ordering import GEOMETRY_FAMILY as _GEOMETRY_FAMILY
+
+_CARRIER_TEMPLATES = set(_GEOMETRY_FAMILY)
+
+
+# Words that are never the thing a scene is about.
+_NOT_SALIENT = {
+    "the", "a", "an", "and", "or", "but", "so", "of", "to", "in", "on", "at",
+    "for", "from", "with", "by", "as", "that", "this", "these", "those", "it",
+    "its", "is", "are", "was", "were", "be", "been", "we", "you", "they", "he",
+    "she", "our", "your", "their", "my", "his", "her", "what", "how", "when",
+    "why", "who", "which", "there", "here", "then", "than", "into", "out",
+    "about", "over", "under", "more", "most", "some", "any", "all", "one",
+    "thing", "things", "way", "ways", "kind", "sort", "lot", "time", "times",
+    "people", "something", "everything", "anything", "nothing",
 }
+
+_PROPER = re.compile(r"\b([A-Z][a-zA-Z]{2,}(?:\s+[A-Z][a-zA-Z]{2,})*)\b")
+
+
+def _salient_entities(scene: dict[str, Any]) -> set[str]:
+    """What this scene is ABOUT, as opposed to what it happens to say.
+
+    The old continuity key was the first content word of the headline, which is
+    close to a random token: adjacent scenes almost never matched it and carrier
+    persistence sat at zero for the whole film.
+    """
+    payload = scene.get("payload", {}) or {}
+    semantics = scene.get("semantics", {}) or {}
+    found: set[str] = set()
+
+    # Proper nouns are the strongest identity signal a transcript offers. A
+    # capital at position 0 is NOT discarded: "HouseSmart now ships weekly"
+    # opens with the very entity the scene is about. Sentence-openers are
+    # removed by the _NOT_SALIENT filter at the end instead, which does not
+    # depend on where the word happens to sit.
+    for field in ("headline", "left", "right", "center", "parent", "term", "supporting"):
+        value = payload.get(field)
+        if isinstance(value, str):
+            for match in _PROPER.finditer(value):
+                found.add(match.group(1).strip().lower())
+    for entry in (payload.get("items") or []) + (payload.get("nodes") or []):
+        if isinstance(entry, str):
+            for match in _PROPER.finditer(entry):
+                found.add(match.group(1).strip().lower())
+
+    # The rated head noun, and the head word of each frame role filler.
+    head = semantics.get("head_noun")
+    if head and head not in _NOT_SALIENT:
+        found.add(str(head).lower())
+    for filler in (semantics.get("roles") or {}).values():
+        tokens = [re.sub(r"[^\w-]", "", t.lower()) for t in str(filler).split()]
+        tokens = [t for t in tokens if t and t not in _NOT_SALIENT and len(t) > 3]
+        if tokens:
+            found.add(tokens[-1])
+    # Most sentences carry no proper noun at all. The head words of the
+    # headline are then the only identity available, and without them a scene
+    # about "the migration" shares nothing with the next scene about it.
+    headline = payload.get("headline")
+    if isinstance(headline, str):
+        tokens = [re.sub(r"[^\w-]", "", t.lower()) for t in headline.split()]
+        content = [t for t in tokens if t and len(t) > 4 and t not in _NOT_SALIENT]
+        # Subject and object both carry identity: taking only the tail missed
+        # "migration" in "The migration finished last quarter", so the next
+        # scene about the migration shared nothing with it.
+        found.update(content[:1] + content[-2:])
+
+    return {value for value in found if value and value not in _NOT_SALIENT}
+
+
+def _shared_entities(previous: dict[str, Any], current: dict[str, Any]) -> list[str]:
+    before, after = _salient_entities(previous), _salient_entities(current)
+    direct = before & after
+    if direct:
+        return sorted(direct)
+    # Given information is by definition already established, so if the current
+    # scene's given half overlaps the previous scene at all, the object is
+    # already on screen and does not need to be introduced again (SEMANTIC
+    # MAPPING §6, the given-new contract).
+    given = str((current.get("semantics") or {}).get("given") or "")
+    if given:
+        tokens = {re.sub(r"[^\w-]", "", t.lower()) for t in given.split()}
+        tokens = {t for t in tokens if t and t not in _NOT_SALIENT and len(t) > 3}
+        overlap = tokens & before
+        if overlap:
+            return sorted(overlap)
+    return []
 
 
 def _rank(level: str) -> int:
@@ -142,22 +229,50 @@ def apply_composition(
     carriers = 0
     for index in range(1, len(scenes)):
         previous, current = scenes[index - 1], scenes[index]
-        shared_key = (
-            previous.get("continuity_key")
-            and previous.get("continuity_key") == current.get("continuity_key")
-        )
-        both_carry = (
-            str(previous.get("template")) in _CARRIER_TEMPLATES
-            and str(current.get("template")) in _CARRIER_TEMPLATES
-        )
+        shared = _shared_entities(previous, current)
         same_family = previous.get("template") == current.get("template")
-        if shared_key and both_carry:
-            current["carrier"] = {"from": previous["id"], "mode": "mutate"}
+        if shared:
+            # The object is already on screen: the scene mutates it rather than
+            # rebuilding it, which is what makes a run of scenes read as one
+            # argument instead of a stack of slides.
+            current["carrier"] = {
+                "from": previous["id"],
+                "mode": "mutate" if not same_family else "persist",
+                "shared": shared[:4],
+            }
             carriers += 1
-        elif both_carry and same_family:
-            current["carrier"] = {"from": previous["id"], "mode": "persist"}
+        elif _GEOMETRY_FAMILY.get(str(previous.get("template"))) == _GEOMETRY_FAMILY.get(str(current.get("template"))) \
+                and str(current.get("template")) in _GEOMETRY_FAMILY:
+            # Same object, new content. The geometry holds across the cut, so
+            # the frame is not restated from nothing.
+            current["carrier"] = {"from": previous["id"], "mode": "frame", "shared": []}
             carriers += 1
     carrier_ratio = carriers / max(1, len(scenes))
+
+    # How many cuts COULD have continued the object without dropping an
+    # obligation. If this is also low, the piece genuinely changes subject and
+    # shape every scene, and persistence is a property of the material rather
+    # than something the compiler declined to exploit. Saying which is the
+    # difference between a useful report and a nag.
+    opportunities = 0
+    for index in range(1, len(scenes)):
+        family = _GEOMETRY_FAMILY.get(str(scenes[index - 1].get("template")))
+        if not family:
+            continue
+        selected = (scenes[index].get("selection_trace", {}).get("selected", {}) or {}).get("order") or {}
+        base_loss = int(selected.get("semantic_loss", 0))
+        base_risk = int(selected.get("false_implication_risk", 0))
+        base_mismatch = int(selected.get("relation_mismatch", 0))
+        for candidate in scenes[index].get("selection_trace", {}).get("candidates", []) or []:
+            order = candidate.get("order") or {}
+            if _GEOMETRY_FAMILY.get(str(candidate.get("template"))) != family:
+                continue
+            if (int(order.get("semantic_loss", 99)) <= base_loss
+                    and int(order.get("false_implication_risk", 99)) <= base_risk
+                    and int(order.get("relation_mismatch", 999)) <= base_mismatch):
+                opportunities += 1
+                break
+    opportunity_ratio = opportunities / max(1, len(scenes))
 
     # --- hero rule ----------------------------------------------------------
     for scene in scenes:
@@ -180,5 +295,6 @@ def apply_composition(
         "carrier_persistence": round(carrier_ratio, 3),
         "carrier_persistence_min": carrier_min,
         "carrier_persistence_met": carrier_ratio >= carrier_min,
+        "carrier_opportunities": round(opportunity_ratio, 3),
         "notes": notes,
     }

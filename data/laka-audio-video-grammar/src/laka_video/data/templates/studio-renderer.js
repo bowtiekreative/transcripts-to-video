@@ -154,7 +154,9 @@
     return String(scene.semantics?.motion_operator || "build_settle");
   }
 
-  function revealStyle(p, scene, delayMs, riseUnits) {
+  function revealStyle(p, scene, delayMs, riseUnits, value) {
+    // An element carried over from the previous scene is already there.
+    if (value !== undefined && isHeld(scene, value)) return heldStyle(p, scene);
     const duration = Math.max(0.001, scene.end - scene.start);
     const operator = sceneOperator(scene);
     const start = (delayMs / 1000) / duration;
@@ -185,6 +187,48 @@
       offset += q * 0.22 * U * Math.sin(t * 1.6 + (delayMs / 260));
     }
     return `opacity:${(q * exit).toFixed(4)};transform:translateY(${px(offset)});`;
+  }
+
+  // -------------------------------------------------------------- carrier ---
+  // A scene that continues an object already on screen must not rebuild it.
+  // Re-entering a rail, a panel outline or an unchanged eyebrow tells the
+  // viewer "new thing" when the truth is "same thing, more of it", and that is
+  // the difference between one argument and a stack of slides.
+  const SCENE_BY_ID = new Map((STORY.scenes || []).map(s => [s.id, s]));
+
+  function carrierOf(scene) {
+    return scene.carrier || null;
+  }
+
+  function previousScene(scene) {
+    const carrier = carrierOf(scene);
+    return carrier ? SCENE_BY_ID.get(carrier.from) || null : null;
+  }
+
+  // Held: already present, so it neither fades nor travels. It only exits.
+  function heldStyle(p, scene) {
+    const exit = 1 - dsEase((p - 0.94) / 0.06);
+    return `opacity:${exit.toFixed(4)};`;
+  }
+
+  // True when this exact string was on screen in the scene before.
+  function isHeld(scene, value) {
+    const carrier = carrierOf(scene);
+    if (!carrier || !value) return false;
+    const norm = textNorm(value);
+    if (!norm) return false;
+    if ((carrier.shared || []).some(entity => norm.includes(textNorm(entity)))) return true;
+    const before = previousScene(scene);
+    if (!before) return false;
+    const payload = before.payload || {};
+    return ["headline", "label", "left", "right", "center", "parent", "term"]
+      .some(key => payload[key] && textNorm(payload[key]) === norm);
+  }
+
+  // Structural chrome holds whenever the geometry itself is continuing.
+  function frameHolds(scene) {
+    const carrier = carrierOf(scene);
+    return Boolean(carrier && (carrier.mode === "frame" || carrier.mode === "persist"));
   }
 
   // ------------------------------------------------------------- modality ---
@@ -244,7 +288,7 @@
   function microLabel(text, p, scene, delayMs, color, against) {
     if (!text) return "";
     if (against && echoes(text, against)) return "";
-    return `<div style="${revealStyle(p, scene, delayMs === undefined ? 0 : delayMs, 1.2)}font:600 ${px(MICRO_SIZE)}/1 ${font};letter-spacing:.12em;text-transform:uppercase;color:${color || colors.muted};">${esc(String(text).toUpperCase())}</div>`;
+    return `<div style="${revealStyle(p, scene, delayMs === undefined ? 0 : delayMs, 1.2, text)}font:600 ${px(MICRO_SIZE)}/1 ${font};letter-spacing:.12em;text-transform:uppercase;color:${color || colors.muted};">${esc(String(text).toUpperCase())}</div>`;
   }
 
   // Headlines reveal line by line, like a shot list — never word by word.
@@ -253,7 +297,7 @@
     if (!fitted.lines.length) return "";
     if (opt.stagger === undefined) opt.stagger = staggerFor(fitted.lines.length);
     const rendered = fitted.lines.map((line, index) =>
-      `<div style="${revealStyle(p, scene, opt.delay + index * opt.stagger)}font:600 ${px(fitted.size)}/${fitted.leading} ${font};letter-spacing:-.05em;color:${opt.color};white-space:pre;">${esc(line)}</div>`
+      `<div style="${revealStyle(p, scene, opt.delay + index * opt.stagger, undefined, line)}font:600 ${px(fitted.size)}/${fitted.leading} ${font};letter-spacing:-.05em;color:${opt.color};white-space:pre;">${esc(line)}</div>`
     ).join("");
     return `<div style="display:flex;flex-direction:column;">${rendered}</div>`;
   }
@@ -372,7 +416,8 @@
       const glyph = ordered
         ? `<span style="font:600 ${px(fit.size * 0.82)}/1 ${font};letter-spacing:-.02em;color:${colors.accent};font-variant-numeric:tabular-nums;">${String(index + 1).padStart(2, "0")}</span>`
         : `<span style="font:600 ${px(fit.size * 0.9)}/1 ${font};color:${colors.accent};">&#8594;</span>`;
-      return `<div style="${style}display:flex;align-items:baseline;gap:${px(2.4 * U)};padding:${px(rowPad)} 0;border-top:1px solid ${index === 0 ? "transparent" : colors.hairSoft};">
+      const holdRule = frameHolds(scene);
+      return `<div style="${holdRule ? heldStyle(p, scene) : style}display:flex;align-items:baseline;gap:${px(2.4 * U)};padding:${px(rowPad)} 0;border-top:1px solid ${index === 0 ? "transparent" : colors.hairSoft};">
         <div style="flex:0 0 ${px(glyphWidth - 2.4 * U)};">${glyph}</div>
         <div style="flex:1 1 auto;font:600 ${px(fit.size)}/${fit.leading} ${font};letter-spacing:-.03em;color:${colors.text};">${esc(fit.wrapped[index].join(" "))}</div></div>`;
     }).join("");
@@ -522,7 +567,7 @@
         // Cards hug their type. A card taller than its content is a hollow box,
         // and the system has no hollow boxes in it.
         const panel = (index, panelLabel, delayMs, hot) =>
-          `<div style="${revealStyle(p, scene, delayMs)}display:flex;flex-direction:column;justify-content:center;gap:${px(1.6 * U)};padding:${px(pad)};border-radius:${px(1.6 * U)};background:${hot ? colors.raised : colors.surface};${certaintyBorder(scene, hot ? colors.accent : colors.hairSoft)}">
+          `<div style="${frameHolds(scene) ? heldStyle(p, scene) : revealStyle(p, scene, delayMs)}display:flex;flex-direction:column;justify-content:center;gap:${px(1.6 * U)};padding:${px(pad)};border-radius:${px(1.6 * U)};background:${hot ? colors.raised : colors.surface};${certaintyBorder(scene, hot ? colors.accent : colors.hairSoft)}">
             <div style="font:600 ${px(MICRO_SIZE)}/1 ${font};letter-spacing:.12em;text-transform:uppercase;color:${hot ? colors.accent : colors.muted};">${esc(String(panelLabel).toUpperCase())}</div>
             <div style="font:600 ${px(fit.size)}/${fit.leading} ${font};letter-spacing:-.03em;color:${colors.text};">${esc(fit.wrapped[index].join(" "))}</div>
           </div>`;

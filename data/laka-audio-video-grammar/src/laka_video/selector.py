@@ -341,6 +341,7 @@ class TemplateSelector:
                 seed=seed,
                 scene_id=str(scene.get("id", "")),
                 template=template,
+                previous_template=str(history[-1].get("template")) if history else None,
             )
             if key.semantic_loss:
                 reasons.append(f"drops {key.semantic_loss} semantic obligation(s)")
