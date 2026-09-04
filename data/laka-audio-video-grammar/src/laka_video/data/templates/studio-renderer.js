@@ -146,9 +146,11 @@
     return dsEase((p - start) / Math.max(0.0001, span));
   }
 
-  // Micro-label: tiny and wide, the counterweight to the headline.
-  function microLabel(text, p, scene, delayMs, color) {
+  // Micro-label: tiny and wide, the counterweight to the headline. A label that
+  // restates the headline is not a counterweight, it is the same weight twice.
+  function microLabel(text, p, scene, delayMs, color, against) {
     if (!text) return "";
+    if (against && echoes(text, against)) return "";
     return `<div style="${revealStyle(p, scene, delayMs === undefined ? 0 : delayMs, 1.2)}font:600 ${px(MICRO_SIZE)}/1 ${font};letter-spacing:.12em;text-transform:uppercase;color:${color || colors.muted};">${esc(String(text).toUpperCase())}</div>`;
   }
 
@@ -215,7 +217,7 @@
     const hasLabel = Boolean(label);
     const height = (hasLabel ? MICRO_SIZE : 0) + (hasLabel && fitted.height ? HEAD_GAP : 0) + fitted.height;
     return {
-      html: microLabel(label, p, scene, 0) + headlineLines(fitted, p, scene, {}),
+      html: microLabel(label, p, scene, 0, undefined, headline) + headlineLines(fitted, p, scene, {}),
       height,
       // A lone micro-label is not a head to hang a figure under: without a
       // headline above it the figure takes the whole band.
@@ -294,7 +296,7 @@
       const quote = template === "quote_focus";
       const eyebrow = quote
         ? `<div style="${revealStyle(p, scene, 0, 1.2)}font:600 ${px(7 * U)}/.62 ${font};color:${colors.accent};">&#8220;</div>`
-        : microLabel(P.label || speaker, p, scene, 0);
+        : microLabel(P.label || speaker, p, scene, 0, undefined, P.headline);
       const supporting = headlineUnlessEcho(P.supporting, [P.headline]);
       return statementFrame(eyebrow,
         headlineBlock(P.headline || scene.text, p, scene, { width: box.rail, height: box.height * 0.66 }, { max: 12.4, min: 5.4, maxLines: 5 }) +
@@ -303,7 +305,7 @@
     }
 
     if (template === "question_card") {
-      return statementFrame(microLabel(P.label || "The question", p, scene, 0),
+      return statementFrame(microLabel(P.label || "The question", p, scene, 0, undefined, P.headline),
         headlineBlock(P.headline || scene.text, p, scene, { width: box.rail, height: box.height * 0.66 }, { max: 11.6, min: 5.2, maxLines: 5 }) +
         `<div style="${revealStyle(p, scene, 520, 1.2)}width:${px(6 * U)};height:${px(.34 * U)};background:${colors.accent};"></div>`
       );
@@ -342,7 +344,7 @@
         : "";
       return `<div style="position:absolute;inset:0;background:${colors.accent};transform:scaleY(${sweep.toFixed(4)});transform-origin:50% 100%;"></div>` +
         statementFrame(
-          microLabel(P.label || "", p, scene, 200, "rgba(245,247,250,.72)"),
+          microLabel(P.label || "", p, scene, 200, "rgba(245,247,250,.72)", P.headline),
           headlineBlock(P.headline || scene.text, p, scene, { width: box.rail, height: box.height * 0.52 }, { max: 12.4, min: 5.4, maxLines: 4, delay: 300, color: onAccent }) +
           bodyText(headlineUnlessEcho(P.supporting, [P.headline]), p, scene, { width: box.rail, height: box.height * 0.14 }, 600, "rgba(245,247,250,.86)") +
           action + destination
@@ -546,7 +548,7 @@
     }
 
     // ---- fallback: treat anything unmapped as a statement --------------------
-    return statementFrame(microLabel(P.label || "", p, scene, 0),
+    return statementFrame(microLabel(P.label || "", p, scene, 0, undefined, P.headline),
       headlineBlock(P.headline || scene.text, p, scene, { width: box.rail, height: box.height * 0.66 }, { max: 12.4, min: 5.2, maxLines: 5 })
     );
   }

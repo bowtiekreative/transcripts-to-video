@@ -11,8 +11,10 @@ from jsonschema import validate
 
 from . import __version__
 from .audio import AudioAnalysis, analyze_audio
+from .budget import fit_payload_to_budget
 from .captions import build_captions
 from .html_renderer import render_preview
+from .composition import apply_composition
 from .lint import lint_storyboard
 from .motion import compile_motion
 from .report import decision_report
@@ -254,6 +256,11 @@ def compile_project(project_path: str | Path, grammar_dir: str | Path | None = N
         # an obligation no template can satisfy and every candidate is charged
         # for dropping content that was never handed to it.
         _fill_payload_from_roles(analysis["payload"], semantics)
+        # The scene's duration bounds what it can carry, before any template is
+        # chosen. Over budget, drop a density level rather than shrink the type.
+        budget_record = fit_payload_to_budget(
+            analysis["payload"], draft.text, max(0.01, draft.duration), perception
+        )
         data_bound = False
         data_key = overrides.get("data")
         if data_key and isinstance(data_doc, dict):
@@ -313,6 +320,7 @@ def compile_project(project_path: str | Path, grammar_dir: str | Path | None = N
             "sensitive": analysis["sensitive"],
             "continuity_key": continuity_key,
             "semantics": semantics.to_dict(),
+            "reading_budget": budget_record,
             "words_per_second": scene_info["words_per_second"],
             "audio_features": features,
             "template": selected.template,
@@ -385,6 +393,11 @@ def compile_project(project_path: str | Path, grammar_dir: str | Path | None = N
             ],
         },
     }
+    # Rhythm, accent budget, carrier persistence and the ending are properties
+    # of the whole piece, so they are enforced after every scene is chosen.
+    storyboard["composition_report"] = apply_composition(
+        compiled_scenes, perception, float(composition_duration)
+    )
     storyboard = json_safe(storyboard)
     report = lint_storyboard(storyboard, defaults_runtime, template_library)
     storyboard["lint_summary"] = {k: v for k, v in report.items() if k != "issues"}

@@ -143,28 +143,70 @@ class OrderKey:
         }
 
 
+# Which payload fields each template actually puts on screen. The payload holds
+# several ALTERNATE encodings of one sentence — a headline, a left/right pair
+# and an item list are all extracted from the same words — so counting every
+# field made a 16-word sentence measure as 45 words on screen and pushed every
+# scene past the readability gate for a reason that was not real.
+RENDERED_FIELDS: dict[str, tuple[str, ...]] = {
+    "title_card": ("headline", "label"),
+    "quote_focus": ("headline", "label"),
+    "question_card": ("headline", "label"),
+    "definition_card": ("term", "definition", "label"),
+    "warning_card": ("headline", "label"),
+    "cta_card": ("headline", "action", "destination", "label"),
+    "big_number": ("number", "label", "unit"),
+    "list_stack": ("headline", "label", "items"),
+    "steps": ("headline", "label", "items"),
+    "funnel": ("headline", "label", "items"),
+    "condition_cards": ("headline", "label", "items", "left", "right"),
+    "timeline": ("headline", "label", "events"),
+    "before_after": ("headline", "label", "left", "right"),
+    "comparison_split": ("headline", "label", "left", "right"),
+    "transformation_arrow": ("headline", "label", "left", "right"),
+    "cause_effect": ("headline", "label", "left", "right"),
+    "problem_solution": ("headline", "label", "left", "right"),
+    "network": ("headline", "label", "center", "nodes", "items"),
+    "cycle": ("headline", "label", "items", "nodes"),
+    "hierarchy_tree": ("headline", "label", "parent", "children"),
+    "bar_chart": ("headline", "unit", "series"),
+    "audio_wave": ("headline", "label"),
+    "matrix": ("headline", "label", "points"),
+}
+
+_LIST_FIELDS = {"items", "nodes", "children", "events", "series", "points"}
+
+
 def visible_words_for(template_id: str, payload: dict[str, Any]) -> int:
-    """Words the frame actually shows, which is not the same as words spoken."""
-    slots = TEMPLATE_SLOTS.get(template_id, set())
-    total = word_count(str(payload.get("headline") or ""))
-    for key in ("label", "unit", "term", "definition", "supporting", "action", "destination",
-                "left", "right", "center", "parent", "number"):
-        if payload.get(key):
-            total += word_count(str(payload[key]))
-    for key in ("items", "nodes", "children"):
+    """Words THIS template will show, not every word the payload happens to hold."""
+    fields = RENDERED_FIELDS.get(template_id)
+    if fields is None:
+        fields = ("headline", "label")
+    total = 0
+    for key in fields:
         value = payload.get(key)
-        if isinstance(value, list):
-            total += sum(word_count(str(v)) for v in value)
-    events = payload.get("events")
-    if isinstance(events, list):
-        total += sum(
-            word_count(str(e.get("event", ""))) + word_count(str(e.get("time", "")))
-            for e in events if isinstance(e, dict)
-        )
-    series = payload.get("series")
-    if isinstance(series, list):
-        total += sum(word_count(str(s.get("label", ""))) for s in series if isinstance(s, dict))
-    return total
+        if not value:
+            continue
+        if key in _LIST_FIELDS and isinstance(value, list):
+            for entry in value:
+                if isinstance(entry, dict):
+                    total += sum(
+                        word_count(str(entry.get(k, "")))
+                        for k in ("event", "time", "label", "value")
+                    )
+                else:
+                    total += word_count(str(entry))
+        else:
+            total += word_count(str(value))
+    # A headline the renderer suppresses because it restates the figure below it
+    # is not on screen, so it is not counted here either.
+    if template_id in {"before_after", "comparison_split", "transformation_arrow",
+                       "cause_effect", "problem_solution"}:
+        headline = str(payload.get("headline") or "").lower()
+        pair = f"{payload.get('left') or ''} {payload.get('right') or ''}".lower()
+        if headline and all(w in pair for w in headline.replace("→", " ").split()):
+            total -= word_count(str(payload.get("headline") or ""))
+    return max(0, total)
 
 
 def item_count(payload: dict[str, Any]) -> int:
@@ -281,6 +323,21 @@ _SCHEMA_EVIDENCE: dict[str, tuple[str, ...]] = {
 }
 
 
+def _restates(items: list[Any], headline: str) -> bool:
+    """True when a list is just the headline's own sentence, chopped up.
+
+    The text pass extracts a headline and a list from the SAME words, so a
+    template that shows one is not dropping the other. Without this, cta_card
+    was charged for discarding a decomposition of its own headline and lost to
+    a list template that could not state the call to action at all.
+    """
+    norm = lambda v: "".join(ch for ch in str(v).lower() if ch.isalnum() or ch == " ").strip()
+    head = norm(headline)
+    if not head:
+        return False
+    return any(norm(item) and (norm(item) in head or head in norm(item)) for item in items)
+
+
 def _payload_evidence(payload: dict[str, Any]) -> set[str]:
     evidence: set[str] = set()
     if payload.get("left") and payload.get("right"):
@@ -288,6 +345,8 @@ def _payload_evidence(payload: dict[str, Any]) -> set[str]:
     for key in ("items", "nodes", "children"):
         value = payload.get(key)
         if isinstance(value, list) and len(value) >= 2:
+            if _restates(value, str(payload.get("headline") or "")):
+                continue
             evidence.add("items")
             break
     if payload.get("center") or payload.get("parent"):

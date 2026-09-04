@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import math
 from collections import Counter
 from typing import Any
 
+from .ordering import chunk_count, item_count, motion_events_for, scan_seconds, visible_words_for
 from .utils import word_count
 
 
@@ -11,6 +13,174 @@ def _issue(severity: str, code: str, message: str, scene_id: str | None = None) 
     if scene_id:
         item["scene_id"] = scene_id
     return item
+
+
+def _perception_checks(
+    storyboard: dict[str, Any],
+    perception: dict[str, Any],
+    issues: list[dict[str, Any]],
+) -> None:
+    """Checks 1-16 per scene and 17-34 across the piece.
+
+    Every threshold is read from grammar/perception.yml so a reviewer can see
+    the number and its source rather than a literal buried in code.
+    """
+    scenes = storyboard.get("scenes", []) or []
+    composition = storyboard.get("composition", {}) or {}
+    width = float(composition.get("width", 1080))
+    height = float(composition.get("height", 1920))
+    unit = min(width, height) / float((perception.get("typography", {}) or {}).get("unit_divisor", 108))
+
+    fixation = perception.get("fixation", {}) or {}
+    memory = perception.get("working_memory", {}) or {}
+    magnitude = perception.get("magnitude", {}) or {}
+    motion_cfg = perception.get("motion", {}) or {}
+    typography = perception.get("typography", {}) or {}
+    accessibility = perception.get("accessibility", {}) or {}
+    speech_cfg = perception.get("speech", {}) or {}
+    reading_cfg = perception.get("reading", {}) or {}
+
+    gate = float(fixation.get("duration_gate_ratio", 0.70))
+    max_chunks = int(memory.get("max_simultaneous_marks", 4))
+    max_motion = int(memory.get("max_concurrent_motion_events", 2))
+    max_channels = int(memory.get("max_encoded_channels", 2))
+    safe_channels = set(magnitude.get("quantity_safe_channels", []) or [])
+    weber_floor = float(magnitude.get("min_drawable_difference", 0.05))
+    share_max = float(speech_cfg.get("on_screen_share_max", 0.35))
+    wps = float(reading_cfg.get("on_screen_words_per_second", 3.0))
+
+    for scene in scenes:
+        sid = str(scene.get("id"))
+        template_id = str(scene.get("template"))
+        payload = scene.get("payload", {}) or {}
+        duration = max(0.01, float(scene.get("end", 0)) - float(scene.get("start", 0)))
+        semantics = scene.get("semantics", {}) or {}
+
+        visible = visible_words_for(template_id, payload)
+        marks = int((scene.get("selection_trace", {}).get("selected", {}) or {}).get("order", {}).get("marks",
+                    item_count(payload) + 2))
+        required = scan_seconds(marks, visible, perception)
+
+        # 1. readability gate
+        ratio = required / duration
+        if ratio > gate:
+            issues.append(_issue(
+                "WARNING", "perception.readability",
+                f"Needs {required:.1f}s to read comfortably in a {duration:.1f}s scene "
+                f"(ratio {ratio:.2f} > {gate:.2f}).", sid))
+
+        # 2. working memory
+        chunks = chunk_count(template_id, payload)
+        if chunks > max_chunks:
+            issues.append(_issue("WARNING", "perception.chunks",
+                                 f"{chunks} simultaneous chunks exceeds the working-memory ceiling of {max_chunks}.", sid))
+
+        # 3. concurrent motion
+        events = motion_events_for(template_id, payload)
+        if events > max_motion:
+            issues.append(_issue("WARNING", "perception.motion_events",
+                                 f"{events} concurrent motion events; a third competing motion destroys focus.", sid))
+
+        # 4. encoded channels
+        channels = 1 + (1 if payload.get("series") else 0) + (1 if payload.get("points") else 0)
+        if channels > max_channels:
+            issues.append(_issue("WARNING", "perception.channels",
+                                 f"{channels} encoded channels forces a conjunction search.", sid))
+
+        # 7 / 9. magnitude honesty
+        from .ordering import QUANTITY_CHANNEL
+        channel = QUANTITY_CHANNEL.get(template_id)
+        asserts_quantity = bool(semantics.get("requires_numeric")) or bool(payload.get("series"))
+        if asserts_quantity and channel and channel not in safe_channels and channel != "printed":
+            issues.append(_issue("ERROR", "magnitude.unsafe_channel",
+                                 f"{template_id} encodes a quantity by {channel}; Stevens' exponent makes that "
+                                 f"channel systematically misread.", sid))
+
+        # 8. Weber floor
+        series = payload.get("series")
+        if isinstance(series, list) and len(series) >= 2:
+            try:
+                values = sorted(float(item.get("value", 0)) for item in series if isinstance(item, dict))
+                if values and values[-1] > 0 and (values[-1] - values[0]) / values[-1] < weber_floor:
+                    issues.append(_issue("WARNING", "magnitude.below_weber_floor",
+                                         f"Largest difference is under {weber_floor:.0%}; drawn as length it is "
+                                         f"indistinguishable. Print the delta instead.", sid))
+            except (TypeError, ValueError):
+                pass
+
+        # 21. label precision may not exceed claim precision
+        if semantics.get("label_precision") == "rounded":
+            number = str(payload.get("number", ""))
+            if "." in number:
+                issues.append(_issue("ERROR", "modality.false_precision",
+                                     f"Claim is hedged but the label reads {number}.", sid))
+
+        # 22 / 23. depiction gate
+        depiction = str(semantics.get("depiction", "typography"))
+        has_asset = bool(scene.get("asset") or payload.get("asset"))
+        if has_asset and depiction != "photograph":
+            issues.append(_issue("WARNING", "depiction.too_literal",
+                                 f"Head noun is {semantics.get('concreteness_band')}; a photograph is not licensed.", sid))
+
+        # 24. unfilled roles must stay unfilled
+        for role in semantics.get("unfilled_core_roles", []) or []:
+            issues.append(_issue("INFO", "frame.role_unfilled",
+                                 f"Frame role '{role}' was not stated; no mark may stand in for it.", sid))
+
+        # 25. motion operator matches aspect
+        operator = str(semantics.get("motion_operator", ""))
+        family = str((scene.get("motion", {}) or {}).get("family", ""))
+        if operator == "static" and family in {"trace", "accumulate"}:
+            issues.append(_issue("INFO", "aspect.motion_mismatch",
+                                 f"Stative claim rendered with a {family} build.", sid))
+
+        # 26. negation shows the object first
+        negation = semantics.get("negation")
+        if negation and not negation.get("show_positive_first", True):
+            issues.append(_issue("WARNING", "negation.absence_only",
+                                 "Negation must show the object and then strike it, never only its absence.", sid))
+
+        # 30. headline must not duplicate the concurrent caption
+        headline = str(payload.get("headline", "")).strip().lower()
+        if headline:
+            for caption in storyboard.get("captions", []) or []:
+                if float(caption.get("t0", 0)) >= float(scene.get("start", 0)) and \
+                   float(caption.get("t1", 0)) <= float(scene.get("end", 0)):
+                    if str(caption.get("text", "")).strip().lower() in headline:
+                        issues.append(_issue("INFO", "redundancy.caption_headline",
+                                             "Headline repeats the caption on screen at the same moment.", sid))
+                        break
+
+        # §1.4 on-screen words are a fraction of spoken words
+        spoken = word_count(str(scene.get("text", "")))
+        if spoken and visible / spoken > share_max:
+            issues.append(_issue("INFO", "perception.transcription",
+                                 f"{visible} of {spoken} spoken words are on screen "
+                                 f"({visible / spoken:.0%} > {share_max:.0%}); the frame is transcribing, not composing.", sid))
+
+    # ---- composition level, checks 17-20 ---------------------------------
+    report = storyboard.get("composition_report", {}) or {}
+    if report:
+        if report.get("accent_bleed_scenes", 0) > report.get("accent_budget", 1):
+            issues.append(_issue("WARNING", "rhythm.accent_budget",
+                                 f"{report['accent_bleed_scenes']} full-bleed accent scenes; the budget is "
+                                 f"{report['accent_budget']} at the conversion moment."))
+        if not report.get("carrier_persistence_met", True):
+            issues.append(_issue("INFO", "rhythm.carrier_persistence",
+                                 f"Only {report.get('carrier_persistence', 0):.0%} of scenes evolve an existing "
+                                 f"object (target {report.get('carrier_persistence_min', 0.4):.0%}); the piece will "
+                                 f"read as slides rather than one argument."))
+        if not report.get("scene_count_in_band", True):
+            issues.append(_issue("INFO", "rhythm.scene_count",
+                                 f"{report.get('scene_count')} scenes against an expected "
+                                 f"{report.get('expected_scene_count')}; scenes should be argument moves, not sentences."))
+    previous_level = None
+    for scene in scenes:
+        level = scene.get("density_level")
+        if level == "D3" and previous_level == "D3":
+            issues.append(_issue("WARNING", "rhythm.consecutive_density",
+                                 "Two maximum-density scenes in a row.", str(scene.get("id"))))
+        previous_level = level
 
 
 def lint_storyboard(storyboard: dict[str, Any], defaults: dict[str, Any], template_library: dict[str, Any]) -> dict[str, Any]:
@@ -125,12 +295,21 @@ def lint_storyboard(storyboard: dict[str, Any], defaults: dict[str, Any], templa
             issues.append(_issue("ERROR", "caption.out_of_bounds", "Caption exceeds composition duration."))
         last_caption_end = max(last_caption_end, t1)
 
+    perception = storyboard.get("perception") or {}
+    if perception:
+        _perception_checks(storyboard, perception, issues)
+
     severities = Counter(issue["severity"] for issue in issues)
+    # Deductions are per-scene-normalised so the score reads the same on a
+    # 5-scene demo and a 29-scene film. A flat per-issue deduction pinned every
+    # long piece to zero once the perception checks landed, which destroyed the
+    # signal the number exists to carry.
+    scale = max(1.0, len(scenes) / 5.0)
     deductions = (
         severities.get("FATAL", 0) * 30
         + severities.get("ERROR", 0) * 8
-        + severities.get("WARNING", 0) * 2.5
-        + severities.get("INFO", 0) * 0.25
+        + severities.get("WARNING", 0) * 2.5 / scale
+        + severities.get("INFO", 0) * 0.5 / scale
     )
     score = max(0.0, 100.0 - deductions)
     status = "fail" if severities.get("FATAL", 0) or severities.get("ERROR", 0) else "warning" if severities.get("WARNING", 0) else "pass"

@@ -41,6 +41,27 @@ Non-negotiables, each enforced by `tests/test_design_system.py`:
 
 Text extraction has the same standard. Headlines are complete phrases (`text_rules._headline_span`), keep their subject, and never stop on a function word. Spoken web addresses are folded into real domains at transcript ingest (`utils.normalize_spoken_domains`), so "Ryan Perez dot c a" reaches the frame as `ryanperez.ca`.
 
+## Perception and Semantics Contract
+
+`grammar/perception.yml` holds every published threshold the compiler reasons with — reading rate, fixation cost, Cowan's ceiling of 4, Stevens exponents, the Cleveland–McGill ranking, the Weber floor, motion timing, the AV-sync window, type floors, safe areas, the density ladder and the composition rhythm. Nothing downstream may carry a numeric literal: change the number here, and the selector, the budget and the linter all follow.
+
+`grammar/lexicon/` holds the language-to-form mapping. **The noun never chooses the graphic.** The relation does, and the relation lives in the verb, the preposition, the frame and the aspect. Adding a keyword-to-template rule is the one change that is always wrong.
+
+- `image_schemas.yml` — prepositions and verb classes to diagram family, in precedence order. Ambiguous triggers belong lower, or not at all: bare `into` was removed because "turns into", "divided into" and "feeds into" are three different schemas.
+- `frames.yml` — evoking verbs to role structure to visual slots, plus `constraints`, which gate ambiguous lemmas on the construction that makes them that verb ("leads TO", not "potential leads").
+- `aspect.yml` — Vendler class to motion operator. Achievements cut, accomplishments build and settle, activities loop, states hold.
+- `modality.yml` / `negation.yml` — certainty to stroke, opacity and label precision; negation shows the object and then strikes it, never renders it as absence, and preserves quantifier scope.
+- `concreteness_core.yml` — the depiction gate. An unrated word makes the gate abstain; it never licenses a depiction on a guess.
+
+Selection is **lexicographic**, not a weighted sum (`ordering.py`). Truth terms — semantic loss, false-implication risk, relation mismatch — are compared first and the comparison stops the moment they differ, so no amount of economy can reach past them. When adding a term, its position in the tuple is the entire design decision.
+
+Two failure modes to hold in mind, because both have already happened here:
+
+- **Too sparse.** Scoring only frame roles made every template tie at zero loss and selection collapsed to whichever was sparsest — 22 of 29 scenes became title cards. Loss must also count the relation and the structure already extracted into the payload.
+- **Fragmenting to hit a number.** The reading budget (`budget.py`) trims supporting copy, then list length, then spans — and stops. It never cuts a headline except at a clause boundary, because a frame reading "I'm a cognitive" is a defect and going over budget is only a warning. If a metric can only be satisfied by breaking a sentence, report the gap instead.
+
+`composition.py` runs after selection, because rhythm, accent budget, carrier persistence and the ending are properties of the whole piece. Demotions there are ranked by relation fit: rhythm is a presentation concern and must never buy a worse claim.
+
 ## Testing Guidelines
 
 Tests use `pytest` and follow `tests/test_<area>.py` with functions named `test_<behavior>`. Add focused unit tests for parser or rule changes and an integration assertion when generated storyboard behavior changes. Visual or brand changes must also satisfy `tests/test_design_system.py`; if a guard there is wrong, change the guard deliberately and say why in the commit. Verify repeatability, schema validity, and lint scores where applicable. Run `make test` before submitting changes; use `make demo` for compiler or grammar edits.
