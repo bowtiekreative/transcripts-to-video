@@ -38,6 +38,10 @@ laka_video = [
   "data/grammar/*.ebnf",
   "data/templates/*.j2",
   "data/templates/*.js",
+  # Inter 400/600. Without these in the wheel the renderer falls back to a
+  # system face in production and the whole design system goes with it.
+  "data/fonts/*.woff2",
+  "data/fonts/LICENSE.txt",
   "data/web/*.j2",
   "data/web/*.css",
   "data/web/*.js",

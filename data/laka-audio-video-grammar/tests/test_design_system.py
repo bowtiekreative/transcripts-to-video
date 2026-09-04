@@ -183,3 +183,29 @@ def test_domains_keep_their_own_casing():
 
     assert _clean_fragment("ryanperez.ca is where it comes together") == "ryanperez.ca is where it comes together"
     assert _clean_fragment("hello there").startswith("Hello")
+
+
+# -------------------------------------------------------------- packaging ---
+def test_every_runtime_asset_is_declared_as_package_data():
+    """A file under data/ that no glob matches is missing from the wheel.
+
+    This is how the design system disappears in production without anything
+    failing: the fonts are simply absent, inline_font_face_css() returns an
+    empty string, and every frame renders in whatever the base image has.
+    """
+    import fnmatch
+    import tomllib
+
+    pyproject = Path(__file__).resolve().parents[1] / "pyproject.toml"
+    globs = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+    patterns = globs["tool"]["setuptools"]["package-data"]["laka_video"]
+
+    data_root = PACKAGE / "data"
+    missing = []
+    for path in sorted(data_root.rglob("*")):
+        if not path.is_file() or "__pycache__" in path.parts:
+            continue
+        relative = path.relative_to(PACKAGE).as_posix()
+        if not any(fnmatch.fnmatch(relative, pattern) for pattern in patterns):
+            missing.append(relative)
+    assert not missing, f"not shipped in the wheel: {missing}"
