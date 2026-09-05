@@ -9,7 +9,14 @@ def test_demo_compiles_to_auditable_storyboard():
     paths = compile_project(root / "examples" / "demo" / "project.yml")
     story = json.loads(paths["storyboard"].read_text(encoding="utf-8"))
     report = json.loads(paths["lint"].read_text(encoding="utf-8"))
-    assert len(story["scenes"]) == 5
+    # A scene is a sentence. The fixture has eight, and the compiler must not
+    # join two of them: subtitle cues break where the transcriber's line ran
+    # out, which is not where a thought ends.
+    assert len(story["scenes"]) == 8
+    import re
+    for scene in story["scenes"]:
+        sentences = [s for s in re.split(r"(?<=[.!?])\s+", scene["text"].strip()) if s]
+        assert len(sentences) == 1, f"{scene['id']} carries {len(sentences)} sentences"
     assert story["scenes"][0]["template"] == "transformation_arrow"
     assert story["scenes"][-1]["template"] == "cta_card"
     assert story["scenes"][0]["selection_trace"]["candidates"]

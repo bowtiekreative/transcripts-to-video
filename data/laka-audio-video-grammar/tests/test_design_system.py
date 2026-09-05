@@ -306,3 +306,28 @@ def test_captions_are_never_dropped():
     block = player[player.index("function captionAt"):player.index("function renderAt")]
     assert 'return "";' in block, "the no-caption-at-this-moment case must still exist"
     assert "headline.includes(spoken)" not in block, "a caption must not be dropped for matching the headline"
+
+
+# ------------------------------------------------------- the author's rules ---
+def test_text_scales_it_is_never_cut():
+    """A line that shrinks is honest; one that ends in an ellipsis is not, and
+    one that spills out of its box is worse than either."""
+    renderer = read_code("studio-renderer.js")
+    assert "ABSOLUTE_MIN_UNITS" in renderer, "type must keep shrinking rather than overflow"
+    assert "widestLine" in renderer, "an unbreakable word can be wider than the box on its own"
+
+
+def test_a_frame_that_draws_beats_one_that_only_sets_type():
+    """Where two candidates are equally true and equally legible, the graphic
+    wins even though it costs more marks."""
+    from laka_video.ordering import OrderKey
+
+    fields = list(OrderKey.__dataclass_fields__)
+    assert "text_only" in fields
+    # Below every truth and legibility term, above every economy one.
+    assert fields.index("scan_ratio") < fields.index("text_only") < fields.index("marks")
+
+
+def test_a_scene_is_a_sentence():
+    segmenter = (GRAMMAR_SOURCE.parent / "src" / "laka_video" / "segmenter.py").read_text(encoding="utf-8")
+    assert "merged = list(units)" in segmenter, "scenes must not be joined across sentences"

@@ -49,22 +49,81 @@ def _split_long_part(text: str, start: float, end: float, max_seconds: float) ->
 
 
 def cues_to_units(cues: list[Cue], config: dict[str, Any]) -> list[TextUnit]:
+    """One unit per sentence.
+
+    A scene is a sentence. Subtitle cues break wherever the transcriber's line
+    ran out, which is not where a thought ends — a sentence routinely spans two
+    cues, and splitting per cue turned one thought into two scenes. So the cues
+    are stitched back into a continuous stream first, the stream is split at
+    sentence boundaries, and each sentence is mapped back onto the time it was
+    actually spoken.
+
+    Only a sentence too long to sit in one scene is split further, at a clause
+    boundary, because there is nothing else to do with it.
+    """
     max_seconds = float(config.get("max_scene_seconds", 12.0))
+    if not cues:
+        return []
+
+    # Stitch, remembering which characters belong to which cue's time span.
+    spans: list[tuple[int, int, float, float, int]] = []
+    buffer: list[str] = []
+    cursor = 0
+    for cue in cues:
+        text = normalize_whitespace(cue.text)
+        if not text:
+            continue
+        if buffer:
+            buffer.append(" ")
+            cursor += 1
+        spans.append((cursor, cursor + len(text), cue.start, cue.end, cue.index))
+        buffer.append(text)
+        cursor += len(text)
+    transcript = "".join(buffer)
+    if not transcript:
+        return []
+
+    def time_at(position: int, edge: str) -> tuple[float, list[int]]:
+        """Interpolate a character position back onto the spoken timeline."""
+        for start, end, t0, t1, index in spans:
+            if start <= position <= end:
+                share = (position - start) / max(1, end - start)
+                return t0 + (t1 - t0) * share, [index]
+        if edge == "start":
+            return spans[0][2], [spans[0][4]]
+        return spans[-1][3], [spans[-1][4]]
+
+    def cues_between(a: int, b: int) -> list[int]:
+        return sorted({index for start, end, _, _, index in spans if start < b and end > a}) or [spans[0][4]]
+
     units: list[TextUnit] = []
     counter = 1
-    for cue in cues:
-        sentences = [s for s in _SENTENCE_RE.split(cue.text) if normalize_whitespace(s)]
-        if not sentences:
-            sentences = [cue.text]
-        sentence_times = _timed_parts(sentences, cue.start, cue.end)
-        for t0, t1, sentence in sentence_times:
-            for p0, p1, part in _split_long_part(sentence, t0, t1, max_seconds):
-                units.append(TextUnit(
-                    id=f"unit-{counter:04d}", start=round(p0, 4), end=round(p1, 4),
-                    text=normalize_whitespace(part), cue_ids=[cue.index], tags=dict(cue.tags),
-                    explicit_boundary=len(sentences) == 1,
-                ))
-                counter += 1
+    position = 0
+    for sentence in _SENTENCE_RE.split(transcript):
+        clean = normalize_whitespace(sentence)
+        if not clean:
+            continue
+        begin = transcript.find(sentence.strip(), position)
+        if begin < 0:
+            begin = position
+        finish = begin + len(sentence.strip())
+        position = finish
+        start, _ = time_at(begin, "start")
+        end, _ = time_at(finish, "end")
+        if end <= start:
+            end = start + 0.4
+        ids = cues_between(begin, finish)
+        tags: dict[str, Any] = {}
+        for cue in cues:
+            if cue.index in ids:
+                tags.update(cue.tags)
+        for p0, p1, part in _split_long_part(clean, start, end, max_seconds):
+            units.append(TextUnit(
+                id=f"unit-{counter:04d}", start=round(p0, 4), end=round(p1, 4),
+                text=normalize_whitespace(part), cue_ids=ids, tags=dict(tags),
+                explicit_boundary=True,
+            ))
+            counter += 1
     return units
 
 
@@ -89,38 +148,9 @@ def units_to_scenes(units: list[TextUnit], config: dict[str, Any], duration: flo
     # The speaker's own pause is the argument boundary. Anything shorter than
     # this is continuous speech and belongs to one move.
     pause = float(config.get("pause_scene_boundary_seconds", 0.55))
-    merged: list[TextUnit] = []
-    i = 0
-    serial = 1
-    while i < len(units):
-        current = units[i]
-        # Scenes are argument moves, not sentences, so merging must be allowed
-        # to cross a subtitle boundary. Restricting it to fragments inside one
-        # cue left 14 of 29 scenes under 5.5s, and a 3.4s scene has a two-word
-        # reading budget however little text it carries.
-        while i + 1 < len(units):
-            following = units[i + 1]
-            gap = following.start - current.end
-            same_cue = following.cue_ids == current.cue_ids
-            combined = following.end - current.start
-            if combined > max_seconds:
-                break
-            # Inside a cue, join fragments up to the target. Across cues, join
-            # only while the speaker did not pause, and only while the scene is
-            # still short of the minimum it needs to be readable.
-            if same_cue and gap < 0.35 and current.duration < target:
-                pass
-            elif not same_cue and gap < pause and current.duration < min_seconds:
-                pass
-            else:
-                break
-            i += 1
-            current = _combine_units(current, following, f"merged-{serial:04d}")
-            serial += 1
-            if current.duration >= target:
-                break
-        merged.append(current)
-        i += 1
+    # No merging. cues_to_units already emits one unit per sentence, and a
+    # scene is a sentence — joining two of them would join two thoughts.
+    merged = list(units)
 
     drafts: list[SceneDraft] = []
     for idx, unit in enumerate(merged):

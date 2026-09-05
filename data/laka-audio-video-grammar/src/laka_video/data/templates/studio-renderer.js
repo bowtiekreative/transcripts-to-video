@@ -50,6 +50,16 @@
     if ("letterSpacing" in MEASURE) MEASURE.letterSpacing = `${tracking * size}px`;
   }
 
+  // The widest line the wrap produced. Counting lines is not enough: a single
+  // unbreakable word ("accessibility-first") can be wider than the box on its
+  // own, and no amount of wrapping will help — only shrinking will.
+  function widestLine(lines, size, weight, tracking) {
+    measureFont(size, weight, tracking);
+    let widest = 0;
+    for (const line of lines) widest = Math.max(widest, MEASURE.measureText(line).width);
+    return widest;
+  }
+
   function wrapLines(text, boxWidth, size, weight, tracking) {
     const source = String(text || "").trim();
     if (!source) return [];
@@ -70,8 +80,14 @@
     return out;
   }
 
-  // Fit text into a box by stepping the size down. Never truncates: a headline
-  // that has to shrink is honest, a headline that ends in "…" is not.
+  // Fit text by stepping the size down. NOTHING IS EVER CUT. A line that has to
+  // shrink is honest; a line that ends in "…" is not, and a line that spills out
+  // of its box is worse than either. The legibility floor is the preferred
+  // stopping point, but when a sentence still will not fit at the floor the type
+  // keeps shrinking to an absolute minimum rather than overflowing — and the
+  // result reports that it went under, so the linter can say so.
+  const ABSOLUTE_MIN_UNITS = 1.7;
+
   function fitText(text, boxWidth, boxHeight, options) {
     const opt = Object.assign({ max: 12, min: 4.4, weight: 600, tracking: -0.05, leading: 1.02, maxLines: 6 }, options || {});
     const source = String(text || "").trim();
@@ -80,13 +96,25 @@
       const size = (opt.max - (opt.max - opt.min) * (step / 44)) * U;
       const lines = wrapLines(source, boxWidth, size, opt.weight, opt.tracking);
       const height = lines.length * size * opt.leading;
-      if (lines.length <= opt.maxLines && height <= boxHeight) {
+      const fitsWidth = widestLine(lines, size, opt.weight, opt.tracking) <= boxWidth + 1;
+      if (lines.length <= opt.maxLines && height <= boxHeight && fitsWidth) {
         return { lines, size, leading: opt.leading, height };
       }
     }
-    const size = opt.min * U;
+    // Below the preferred floor: keep going rather than let it overflow.
+    for (let step = 1; step <= 20; step++) {
+      const size = (opt.min - (opt.min - ABSOLUTE_MIN_UNITS) * (step / 20)) * U;
+      const lines = wrapLines(source, boxWidth, size, opt.weight, opt.tracking);
+      const fitsWidth = widestLine(lines, size, opt.weight, opt.tracking) <= boxWidth + 1;
+      if (lines.length * size * opt.leading <= boxHeight && fitsWidth) {
+        return { lines, size, leading: opt.leading, height: lines.length * size * opt.leading,
+                 belowFloor: true };
+      }
+    }
+    const size = ABSOLUTE_MIN_UNITS * U;
     const lines = wrapLines(source, boxWidth, size, opt.weight, opt.tracking);
-    return { lines, size, leading: opt.leading, height: lines.length * size * opt.leading };
+    return { lines, size, leading: opt.leading, height: lines.length * size * opt.leading,
+             belowFloor: true };
   }
 
   // Fit a set of strings at one shared size, so a list reads as one list rather
@@ -97,13 +125,23 @@
       const size = (opt.max - (opt.max - opt.min) * (step / 44)) * U;
       const wrapped = values.map(value => wrapLines(value, boxWidth, size, opt.weight, opt.tracking));
       const tallest = Math.max(0, ...wrapped.map(lines => lines.length));
-      if (tallest <= opt.maxLines && tallest * size * opt.leading <= boxHeight) {
+      const widest = Math.max(0, ...wrapped.map(lines => widestLine(lines, size, opt.weight, opt.tracking)));
+      if (tallest <= opt.maxLines && tallest * size * opt.leading <= boxHeight && widest <= boxWidth + 1) {
         return { wrapped, size, leading: opt.leading, lineHeight: size * opt.leading };
       }
     }
-    const size = opt.min * U;
+    for (let step = 1; step <= 20; step++) {
+      const size = (opt.min - (opt.min - ABSOLUTE_MIN_UNITS) * (step / 20)) * U;
+      const wrapped = values.map(value => wrapLines(value, boxWidth, size, opt.weight, opt.tracking));
+      const tallest = Math.max(0, ...wrapped.map(lines => lines.length));
+      const widest = Math.max(0, ...wrapped.map(lines => widestLine(lines, size, opt.weight, opt.tracking)));
+      if (tallest * size * opt.leading <= boxHeight && widest <= boxWidth + 1) {
+        return { wrapped, size, leading: opt.leading, lineHeight: size * opt.leading, belowFloor: true };
+      }
+    }
+    const size = ABSOLUTE_MIN_UNITS * U;
     const wrapped = values.map(value => wrapLines(value, boxWidth, size, opt.weight, opt.tracking));
-    return { wrapped, size, leading: opt.leading, lineHeight: size * opt.leading };
+    return { wrapped, size, leading: opt.leading, lineHeight: size * opt.leading, belowFloor: true };
   }
 
   // ------------------------------------------------------------ composition ---

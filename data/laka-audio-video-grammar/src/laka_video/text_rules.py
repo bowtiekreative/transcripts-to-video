@@ -18,7 +18,7 @@ _NUMBER_WORDS = {
 }
 
 _CONNECTOR_TRIM = re.compile(
-    r"^(?:today|so|but|and|then|through|that means|this means|in other words|for example|"
+    r"^(?:instead of|rather than|today|so|but|and|then|through|that means|this means|in other words|for example|"
     r"instead|before that|after that|the question is|the question isn[’']t just)\b[,:]?\s*",
     flags=re.IGNORECASE,
 )

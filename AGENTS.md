@@ -103,6 +103,17 @@ A gap is only reported where it is a hole rather than unstated context. A spoken
 
 An element wins when it is the better form, and `[[LAKA infographic=<id>]]` reaches one deliberately.
 
+## The author's rules
+
+Four standing instructions from Ryan, which override the optimisations they conflict with:
+
+1. **A scene is a sentence.** `cues_to_units` stitches the subtitle cues back into one stream and splits at sentence boundaries, because a cue breaks where the transcriber's line ran out — not where a thought ends, and a sentence routinely spans two of them. Scenes are never joined. This deliberately reverses an earlier change that merged short scenes for readability: shorter scenes are the accepted cost.
+2. **Never cut anything off — scale instead.** The fitter shrinks to the legibility floor, then keeps shrinking to an absolute minimum rather than letting a line overflow, and reports that it went under. Line WIDTH is part of the test, not just line count: a single unbreakable word ("accessibility-first") can be wider than its box on its own, and no amount of wrapping fixes that. Nothing is ever truncated and no frame ends in an ellipsis.
+3. **Graphics matter more than the words.** `text_only` sits in the order below every truth and legibility term and above every economy one: where two candidates are equally true and equally legible, the one that draws wins even though it costs more marks. It cannot buy a lie, break the working-memory ceiling, or push a scene past the reading gate.
+4. **When it is genuinely too much, show less — never reword.** The budget drops supporting copy, then list length, then span length. It does not paraphrase, and it will not cut a sentence to hit a number.
+
+Rule 3 is bounded by the material: on the reintroduction cut, 17 of 18 type-only scenes had no graphic candidate at all, because the sentence carries no extractable structure. Forcing one would be the incongruent-graphic failure, which is measurably worse than plain type.
+
 ## Testing Guidelines
 
 Tests use `pytest` and follow `tests/test_<area>.py` with functions named `test_<behavior>`. Add focused unit tests for parser or rule changes and an integration assertion when generated storyboard behavior changes. Visual or brand changes must also satisfy `tests/test_design_system.py`; if a guard there is wrong, change the guard deliberately and say why in the commit. Verify repeatability, schema validity, and lint scores where applicable. Run `make test` before submitting changes; use `make demo` for compiler or grammar edits.

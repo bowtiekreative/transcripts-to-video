@@ -58,6 +58,22 @@ GEOMETRY_FAMILY: dict[str, str] = {
     "network": "figure", "cycle": "figure", "hierarchy_tree": "figure",
 }
 
+# A frame that draws something, against a frame that only sets type. The brief
+# is that the graphic matters more than the words: where two candidates are
+# equally true and equally legible, the one that draws wins — even though it
+# costs more marks. This sits below every truth and legibility term and above
+# every economy one, which is exactly what "graphics matter more" means when
+# you have to say it as an ordering.
+TEXT_ONLY = {
+    "title_card", "quote_focus", "question_card", "caption_only",
+    "warning_card", "definition_card", "cta_card",
+}
+
+
+def draws_something(template_id: str) -> bool:
+    return template_id not in TEXT_ONLY
+
+
 # Templates that put an explicit number next to the mark. §8 of the sparseness
 # doc: this redundancy earns its ink, because the number survives a glance-away.
 DIRECT_LABEL_TEMPLATES = {"big_number", "bar_chart", "timeline", "matrix"}
@@ -123,6 +139,7 @@ class OrderKey:
     perceptual_rank: int
     chunks: int
     scan_ratio: float
+    text_only: int
     marks: int
     visible_words: int
     motion_events: int
@@ -140,6 +157,7 @@ class OrderKey:
             self.perceptual_rank,
             self.chunks,
             round(self.scan_ratio, 2),
+            self.text_only,
             self.marks,
             self.visible_words,
             self.motion_events,
@@ -156,6 +174,7 @@ class OrderKey:
             "perceptual_rank": self.perceptual_rank,
             "chunks": self.chunks,
             "scan_ratio": round(self.scan_ratio, 3),
+            "text_only": self.text_only,
             "marks": self.marks,
             "visible_words": self.visible_words,
             "motion_events": self.motion_events,
@@ -542,6 +561,7 @@ def build_key(
         perceptual_rank=perceptual_rank(template_id, asserts_quantity, perception),
         chunks=chunks,
         scan_ratio=required / max(duration, 0.01),
+        text_only=0 if draws_something(template_id) else 1,
         marks=marks,
         visible_words=visible,
         motion_events=motion_events_for(template_id, payload),
